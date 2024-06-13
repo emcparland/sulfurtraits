@@ -54,6 +54,7 @@ logics <- read.csv("DOSTraits/SulfateLogic.csv",header = 1)
 # }
 
 df <- read.csv("/pool001/demers/DOSTraits/new_filtered_SA/new_filtered_SA_Sulfate_AssimilationRaw.csv", row.names = 1)
+df <- df[match(genomessums$Genome, row.names(df)),]
 
 df$Group <- genomessums$taxa_elm
 df$Completion <- genomessums$Mean.Completeness
@@ -322,14 +323,14 @@ for (p in c(1)){
   s_combinationsprocessed <- combinationsprocessed %>%
     group_by(Group) %>%
     dplyr::summarise_all("mean")
-  s_combinationsprocessed <- gather( s_combinationsprocessed, key = "key", value = "value", `2,5,6,8NOT `:`9NOT3,5,6`)
+  s_combinationsprocessed <- gather( s_combinationsprocessed, key = "key", value = "value", `2,5,6,8NOT `:`9NOT1,4,6`)
   plot <- ggplot(s_combinationsprocessed, aes(x=factor(key, level=unique(s_combinationsprocessed$key)), y = Group, fill = value)) +
     geom_tile() + scale_fill_viridis_c(option = "rocket", direction = -1) +
     labs(title = paste0(unique(sulfateKOs$Broad.pathway.description[which(sulfateKOs$Pathway.Number == p)]), ": Step Summaries for Genomes above 75% Complete"),
          x = "Step or Calculation",
          y = "Group")
   plot <-  ggdraw() + draw_plot(p_tab, x = 0.85, width = .15) + draw_plot(plot, width = 0.85) 
-  ggsave(filename = paste0("DOSTraits/new_filtered_SA/", unique(sulfateKOs$Broad.pathway.description[which(sulfateKOs$Pathway.Number == p)]), "_combinations.pdf"), plot = plot, width = 60, height = 20, limitsize = FALSE)
+  ggsave(filename = paste0("DOSTraits/new_filtered_SA/", unique(sulfateKOs$Broad.pathway.description[which(sulfateKOs$Pathway.Number == p)]), "_combinations.pdf"), plot = plot, width = 80, height = 20, limitsize = FALSE)
   write.csv(file = paste0("DOSTraits/new_filtered_SA/", unique(sulfateKOs$Broad.pathway.description[which(sulfateKOs$Pathway.Number == p)]), "_combinations.csv"), x= combinationsprocessed)
   
   ## do relative bar plot here, for all completion, all ref genomes, 75% completion and 50% completion
@@ -357,7 +358,7 @@ for (p in c(1)){
   
   dfsteps75$Lifestyle <- "SemiAuxotroph"
   dfsteps75$Lifestyle[which(dfsteps75$MaxCompletion == 0)] <- "Auxotroph"
-  dfsteps75$Lifestyle[which(dfsteps75$MaxCompletion >=.75)] <- "Assimilator"
+  dfsteps75$Lifestyle[which(dfsteps75$MaxCompletion ==1)] <- "Assimilator"
   plot <- ggplot(dfsteps75, aes(x=Group, fill=factor(Lifestyle, level=c("Assimilator", "SemiAuxotroph", "Auxotroph")))) + 
     geom_histogram(position = "fill", stat="count") +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
@@ -366,3 +367,35 @@ for (p in c(1)){
   
   # we removed the genus work that was here as instead of using the max from each genus as the representative for that genus and then averaging over the groups, we are just using a different hmm score filter so we'll still use each genome
 }
+length(results$scaffold_gene[which(results$KO == "K13811")])
+
+dupes <- results %>%
+  filter(scaffold_gene %in% (results$scaffold_gene[which(results$KO == "K13811")])) %>%
+  group_by(scaffold_gene) %>%
+  dplyr::summarise(count = n()) %>%
+  group_by(count)
+which(dupes$scaffold_gene == 4)
+unique(dupes$KO)
+
+plot <- ggplot(dfsteps, aes(x=Group, fill=factor(Lifestyle, level=c("Assimilator", "SemiAuxotroph", "Auxotroph")))) + 
+  geom_histogram(position = "stack", stat="count") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle(paste0(unique(sulfateKOs$Broad.pathway.description[which(sulfateKOs$Pathway.Number == p)]),": All Genomes Lifestyles")) +
+  ylim(0,5500)
+ggsave(filename = paste0("DOSTraits/new_filtered_SA/", unique(sulfateKOs$Broad.pathway.description[which(sulfateKOs$Pathway.Number == p)]), "_stack_Lifestyle_allgenomes.pdf"), plot = plot, width = 15, height = 10, limitsize = FALSE)
+
+plot <- ggplot(dfsteps50, aes(x=Group, fill=factor(Lifestyle, level=c("Assimilator", "SemiAuxotroph", "Auxotroph")))) + 
+  geom_histogram(position = "stack", stat="count") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle(paste0(unique(sulfateKOs$Broad.pathway.description[which(sulfateKOs$Pathway.Number == p)]),": All Genomes (above 50% complete) Lifestyles")) +
+  ylim(0,5500)
+ggsave(filename = paste0("DOSTraits/new_filtered_SA/", unique(sulfateKOs$Broad.pathway.description[which(sulfateKOs$Pathway.Number == p)]), "_stack_Lifestyle_above50.pdf"), plot = plot, width = 15, height = 10, limitsize = FALSE)
+
+plot <- ggplot(dfsteps75, aes(x=Group, fill=factor(Lifestyle, level=c("Assimilator", "SemiAuxotroph", "Auxotroph")))) + 
+  geom_histogram(position = "stack", stat="count") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle(paste0(unique(sulfateKOs$Broad.pathway.description[which(sulfateKOs$Pathway.Number == p)]),": All Genomes (above 75% complete) Lifestyles")) +
+  ylim(0,5500)
+ggsave(filename = paste0("DOSTraits/new_filtered_SA/", unique(sulfateKOs$Broad.pathway.description[which(sulfateKOs$Pathway.Number == p)]), "_stack_Lifestyle_above75.pdf"), plot = plot, width = 15, height = 10, limitsize = FALSE)
+
+
