@@ -2,7 +2,7 @@
 
 ## The dataset
 
-The dataset we are working with is the 34,000+ genomes (refs, sags, and mags) from the ocean microbiomics database v1.
+The dataset we are working with is the 34,000+ genomes (refs, sags, and mags) from the ocean microbiomics database v1. We have determined that we'll be filtering this dataset to genomes that are 75% complete our above, so we are working with about 16,000 genomes now.
 
 ## The scripts
 
