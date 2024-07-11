@@ -4,13 +4,13 @@ library("dplyr")
 library("ggplot2")
 library("ggridges")
 
-# results <- read.table("DOSTraits/kofam_results/all_filtered_results.txt")
+# results <- read.table("DOSTraits/all_filtered_results.txt")
 # results <- results %>%
 #   mutate(V2 = gsub(V2, pattern = "gene_.*", replacement = ""))
-#write.table(x=results, "DOSTraits/kofam_results/formatted_all_filtered_results.txt", row.names = F, quote = F, sep = "\t", col.names = F)
+#write.table(x=results, "DOSTraits/formatted_all_filtered_results.txt", row.names = F, quote = F, sep = "\t", col.names = F)
 
 
-# results <- read.table(file = "DOSTraits/kofam_results/formatted_all_filtered_results.txt", sep ="\t", header = F, quote = "")
+# results <- read.table(file = "DOSTraits/formatted_all_filtered_results.txt", sep ="\t", header = F, quote = "")
 # get the KOs
 sulfateKOs <- read.csv("DOSTraits/Sulfate.csv")
 sulfateKOs$StepKOs <- paste0("Step", sulfateKOs$Step, ":", sulfateKOs$KO)
@@ -20,7 +20,7 @@ genomesscaffolds$V1 <- paste0(genomesscaffolds$V1, "-")
 
 # assign the genome ids to the results file
 # results$V8 <- genomesscaffolds$V2[match(results$V2, genomesscaffolds$V1)]
-# write.table(x = results, file = "DOSTraits/kofam_results/formatted_all_filtered_results_withgenomes.txt", sep = "\t", quote = F, col.names = T)
+# write.table(x = results, file = "DOSTraits/formatted_all_filtered_results_withgenomes.txt", sep = "\t", quote = F, col.names = T)
 
 results <- read.table("DOSTraits/kofam_results/formatted_all_filtered_results_withgenomes.txt", sep = "\t", header = T, quote = "")
 
