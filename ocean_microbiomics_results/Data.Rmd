@@ -1,0 +1,349 @@
+---
+title: "Data Massaging"
+author: "MichelleDeMers"
+date: "2024-06-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(readxl)
+library(gridExtra)
+library(grid)
+library(ggplot2)
+library(cowplot)
+```
+
+```{r}
+full.limit <- read.csv("/Users/michelle/Documents/DOSTraits/new_filtered_SA/Sulfate Assimilationprocessed_above75genomecompletion_2.csv")
+
+# find information about the last step for assimilators
+full.limit %>%
+  filter(MaxCompletion == 1 & Step8 == 1 & Step9 == 1) %>%
+  summarise(n())
+```
+```{r}
+full.limit %>%
+  filter(MaxCompletion == 1 & Step8 == 1 & Step9 == 0) %>%
+  summarise(n())
+```
+```{r}
+full.limit %>%
+  filter(MaxCompletion == 1 & Step8 == 0 & Step9 == 1) %>%
+  summarise(n())
+```
+
+```{r}
+full.limit %>%
+  filter(MaxCompletion == 1 & Step8 == 0 & Step9 == 1) %>%
+  group_by(Group) %>%
+  summarise(n()) 
+```
+
+```{r}
+full.limit %>%
+  filter(MaxCompletion == 1 & (Group=="Cyano-Other" | Group == "Cyano-Pro" | Group == "Cyano-Syn")) %>%
+  group_by(Step8, Step9) %>%
+  summarise(n()) 
+```
+```{r}
+full.limit %>%
+  filter(MaxCompletion == 1 & (Group=="Cyano-Other" | Group == "Cyano-Pro" | Group == "Cyano-Syn")) %>%
+  #group_by(Step8, Step9) %>%
+  summarise(n()) 
+```
+```{r}
+full.limit %>%
+  filter(MaxCompletion == 1) %>%
+  group_by(Step1, Step2, Step3) %>%
+  summarise(n()) 
+```
+
+```{r}
+full.limit %>%
+  filter(MaxCompletion == 1 & (Group=="Cyano-Other" | Group == "Cyano-Pro" | Group == "Cyano-Syn")) %>%
+  group_by(Step1, Step2, Step3) %>%
+  summarise(n()) 
+```
+
+```{r rows.print = 28}
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0.5) %>%
+  group_by(Step1, Step2, Step3, Step4, Step5, Step6, Step7, Step8, Step9) %>%
+  summarise(n()) 
+tmp
+sum(tmp$`n()`)
+```
+```{r rows.print = 28}
+#Reaction 1 + 2
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0.5) %>%
+  group_by(Step1, Step2, Step3, Step4, Step5, Step6, Step7, Step8, Step9) %>%
+  filter(((Step1==1 &Step4 ==1) | (Step1==1 & Step5==1) | (Step2==1 & Step4==1) | (Step2==1 & Step5==1) | (Step3==1 & Step4==1) | (Step3==1 & Step5==1))) %>%
+  summarise(n())
+tmp
+sum(tmp$`n()`)
+
+```
+
+```{r rows.print = 28}
+#Containing PAPSS
+tmp <- full.limit %>%
+  group_by(Step1, Step2, Step3, Step4, Step5, Step6, Step7, Step8, Step9) %>%
+  filter(Step1 == 1 & Step6==0 & Step8==0 & Step9==0) %>%
+  summarise(n())
+tmp
+sum(tmp$`n()`)
+
+```
+
+
+```{r rows.print = 28}
+#Reaction 3 + 4
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0.5) %>%
+  group_by(Step1, Step2, Step3, Step4, Step5, Step6, Step7, Step8, Step9) %>%
+  filter((Step8==1 | Step9==1) & Step6==1) %>%
+  summarise(n())
+tmp
+sum(tmp$`n()`)
+
+```
+
+
+```{r}
+# only 3 and 4
+full.limit %>%
+  filter(MaxCompletion == 0.5) %>%
+  group_by(Step1, Step2, Step3, Step4, Step5, Step6, Step7, Step8, Step9) %>%
+  summarise(n())
+```
+
+```{r rows.print = 28}
+#75% complete
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0.75) %>%
+  group_by(Step1, Step2, Step3, Step4, Step5, Step6, Step7, Step8, Step9) %>%
+  summarise(n())
+tmp
+sum(tmp$`n()`)
+
+```
+
+```{r rows.print = 28}
+#Reaction 1 + 2 + 3
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0.75) %>%
+  group_by(Step1, Step2, Step3, Step4, Step5, Step6, Step7, Step8, Step9) %>%
+  filter(((Step1==1 &Step4 ==1) | (Step1==1 & Step5==1) | (Step2==1 & Step4==1) | (Step2==1 & Step5==1) | (Step3==1 & Step4==1) | (Step3==1 & Step5==1)) & Step6==1) %>%
+  summarise(n())
+tmp
+sum(tmp$`n()`)
+#223
+```
+
+```{r rows.print = 28}
+#Reaction 1 + 2 + 4
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0.75) %>%
+  group_by(Step1, Step2, Step3, Step4, Step5, Step6, Step7, Step8, Step9) %>%
+  filter(((Step1==1 &Step4 ==1) | (Step1==1 & Step5==1) | (Step2==1 & Step4==1) | (Step2==1 & Step5==1) | (Step3==1 & Step4==1) | (Step3==1 & Step5==1)) & (Step8==1 | Step9==1)) %>%
+  summarise(n())
+tmp
+sum(tmp$`n()`)
+#872
+```
+```{r rows.print = 28}
+#Reaction 1 + 3 + 4
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0.75) %>%
+  group_by(Step1, Step2, Step3, Step4, Step5, Step6, Step7, Step8, Step9) %>%
+  filter((Step1==1 | Step2==1 | Step3==1) & (Step4==0) & (Step5==0) & Step6==1 & (Step8==1 | Step9==1)) %>%
+  summarise(n())
+tmp
+sum(tmp$`n()`)
+#1117
+```
+
+```{r rows.print = 28}
+#Reaction 2 + 3 + 4
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0.75) %>%
+  group_by(Step1, Step2, Step3, Step4, Step5, Step6, Step7, Step8, Step9) %>%
+  filter((Step1==0 & Step2==0 & Step3==0) & (Step4==1 | Step5==1) & Step6==1 & (Step8==1 | Step9==1)) %>%
+  summarise(n())
+tmp
+sum(tmp$`n()`)
+#10
+```
+
+```{r rows.print = 28}
+#Groups commonly 75% complete
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0.75) %>%
+  group_by(Group) %>%
+  summarise(seventyfive = n())
+tmp
+tmp1 <- full.limit %>%
+  filter(MaxCompletion != 1 & MaxCompletion != 0) %>%
+  group_by(Group) %>%
+  summarise(full = n())
+tmp1
+tmp2 <- merge(tmp, tmp1,by.x = "Group", by.y = "Group")
+tmp2$frac <- tmp2$seventyfive/tmp2$full
+tmp2
+
+
+```
+```{r rows.print = 28}
+#find which last step is most dominant
+tmp <- full.limit %>%
+  filter(MaxCompletion !=1 & MaxCompletion != 0) %>%
+  group_by(Step8, Step9) %>%
+  filter() %>%
+  summarise(n())
+tmp
+sum(tmp$`n()`)
+#10
+```
+```{r rows.print = 28}
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0.25) %>%
+  group_by(Group) %>%
+  summarise(n())
+tmp
+sum(tmp$`n()`)
+tmp1 <- full.limit %>%
+  filter(MaxCompletion == 0.25 & (Step8==1 | Step9==1)) %>%
+  group_by(Group) %>%
+  summarise(n())
+tmp1
+sum(tmp1$`n()`)
+```
+
+```{r}
+full.limit %>%
+  filter(MaxCompletion == 0.25) %>%
+  group_by(Step1, Step2, Step3, Step4, Step5, Step6, Step7, Step8, Step9) %>%
+  summarise(n())
+```
+
+```{r}
+tmp1 <- full.limit %>%
+  filter(MaxCompletion == 0.25 & (Step2==1 | Step3==1)) %>%
+  group_by(Group) %>%
+  summarise(n())
+tmp1
+sum(tmp1$`n()`)
+```
+```{r rows.print = 28}
+full.limit %>%
+  filter(MaxCompletion !=1 & MaxCompletion !=0) %>%
+  group_by(Group) %>%
+  summarise(n())
+
+```
+
+
+```{r rows.print = 28}
+#find which last step is most dominant
+tmp <- full.limit %>%
+  filter(MaxCompletion !=1 & MaxCompletion != 0 & (Group == "Archaea-Halobacteria" | Group =="Archaea-Nitrosopumilaceae" | Group =="Archaea-Other" | Group=="Archaea-Poseidoniia MGIIa" | Group=="Archaea-Poseidoniia MGIIb")) %>%
+  group_by(Step8, Step9) %>%
+  summarise(n())
+tmp
+sum(tmp$`n()`)
+#10
+```
+
+
+```{r}
+full <- read.csv("/Users/michelle/Documents/DOSTraits/new_filtered_SA/Sulfate Assimilationprocessed.csv")
+full.limit <- read.csv("/Users/michelle/Documents/DOSTraits/new_filtered_SA/Sulfate Assimilationprocessed_above75genomecompletion_2.csv")
+
+tmp <- full %>% 
+  filter(Completion >= 75)
+all(tmp$X == full.limit$X)
+all( full.limit$X == tmp$X)
+
+tmp <- full.limit %>%
+  filter(MaxCompletion == 1) %>%
+  group_by(Group) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  mutate_at(vars(Step1:Subpathway8),list(All_by_Group_Total=~./MaxCompletion))
+write.csv(x=tmp, file="/Users/michelle/Documents/DOSTraits/new_filtered_SA/fractions_complete.csv")
+
+tmp <- full.limit %>%
+  filter(MaxCompletion == 1) %>%
+  group_by(Group) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  summarise(across(where(is.numeric), sum))
+write.csv(x=tmp, file="/Users/michelle/Documents/DOSTraits/new_filtered_SA/fractions_complete2.csv")
+
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0) %>%
+  group_by(Group) %>%
+  summarise(n())
+write.csv(x=tmp, file="/Users/michelle/Documents/DOSTraits/new_filtered_SA/fractions_auxotrophs.csv")
+
+tmp <- full.limit %>%
+  group_by(Group) %>%
+  summarise(n())
+write.csv(x=tmp, file="/Users/michelle/Documents/DOSTraits/new_filtered_SA/fractions_auxotrophs2.csv")
+
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0.5) %>%
+  group_by(Group) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  mutate_at(vars(Step1:Subpathway8),list(All_by_Group_Total=~./MaxCompletion))
+write.csv(x=tmp, file="/Users/michelle/Documents/DOSTraits/new_filtered_SA/fractions_halfcomplete.csv")
+
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0.5) %>%
+  group_by(Group) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  summarise(across(where(is.numeric), sum))
+write.csv(x=tmp, file="/Users/michelle/Documents/DOSTraits/new_filtered_SA/fractions_halfcomplete2.csv")
+
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0.25) %>%
+  group_by(Group) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  mutate_at(vars(Step1:Subpathway8),list(All_by_Group_Total=~./MaxCompletion))
+write.csv(x=tmp, file="/Users/michelle/Documents/DOSTraits/new_filtered_SA/fractions_quartercomplete.csv")
+
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0.25) %>%
+  group_by(Group) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  summarise(across(where(is.numeric), sum))
+write.csv(x=tmp, file="/Users/michelle/Documents/DOSTraits/new_filtered_SA/fractions_quartercomplete2.csv")
+
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0.75) %>%
+  group_by(Group) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  mutate_at(vars(Step1:Subpathway8),list(All_by_Group_Total=~./MaxCompletion))
+write.csv(x=tmp, file="/Users/michelle/Documents/DOSTraits/new_filtered_SA/fractions_3quarterscomplete.csv")
+
+tmp <- full.limit %>%
+  filter(MaxCompletion == 0.75) %>%
+  group_by(Group) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  summarise(across(where(is.numeric), sum))
+write.csv(x=tmp, file="/Users/michelle/Documents/DOSTraits/new_filtered_SA/fractions_3quarterscomplete2.csv")
+
+tmp <- full.limit %>% 
+  filter(MaxCompletion != 1 & (Step8==1 | Step9==1) & Step1==0 & Step2==0 & Step3==0 & Step5==0 & Step6==0)%>%
+  group_by(Group) %>%
+  summarise(n())
+
+print(tmp)
+
+ ```
+ 
+ 
+ 
+ 
+ 
+ 
