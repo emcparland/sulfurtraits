@@ -258,6 +258,8 @@ for (p in 4:length(na.omit(unique(sulfateKOs$Pathway.Number)))){
 }
 
 #write the empty max table
+# here we want redox state of the sulfur too - for this, does not look like I can use ggplot, so would have to move this into a different program (and keep in the wide, not long, format)
+# we want the pathways as columns and the taxa as rows
 
 # for (p in 1:length(unique(sulfateKOs$Pathway.Number))){
 #   
