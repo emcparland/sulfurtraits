@@ -22,29 +22,77 @@ genomesscaffolds$V1 <- paste0(genomesscaffolds$V1, "-")
 # results$V8 <- genomesscaffolds$V2[match(results$V2, genomesscaffolds$V1)]
 # write.table(x = results, file = "DOSTraits/formatted_all_filtered_results_withgenomes.txt", sep = "\t", quote = F, col.names = T)
 
-results <- read.table("DOSTraits/kofam_results/formatted_all_filtered_results_withgenomes.txt", sep = "\t", header = T, quote = "")
+# results <- read.table("DOSTraits/kofam_results/formatted_all_filtered_results_withgenomes.txt", sep = "\t", header = T, quote = "")
+# 
+# # add new KOs:
+# 
+# results <- read.table("DOSTraits/all_filtered_results_addKO.txt")
+# results <- results %>%
+#   mutate(V2 = gsub(V2, pattern = "gene_.*", replacement = ""))
+# write.table(x=results, "DOSTraits/formatted_all_filtered_results_addKO.txt", row.names = F, quote = F, sep = "\t", col.names = F)
+# 
+# 
+# results <- read.table(file = "DOSTraits/formatted_all_filtered_results_addKO.txt", sep ="\t", header = F, quote = "")
+# # get the KOs
+# genomesscaffolds <- read.table("DOSTraits/genomes-scaffolds-membership.tsv")
+# genomesscaffolds$V1 <- paste0(genomesscaffolds$V1, "-")
+# 
+# # assign the genome ids to the results file
+# results$V8 <- genomesscaffolds$V2[match(results$V2, genomesscaffolds$V1)]
+# write.table(x = results, file = "DOSTraits/kofam_results/formatted_all_filtered_results_addKO_withgenomes.txt", sep = "\t", quote = F, col.names = T)
+# 
+# # add hmms:
+# 
+# results <- read.table("DOSTraits/allcustom_filtered.txt")
+# results <- results %>%
+#   mutate(V2 = gsub(V1, pattern = "gene_.*", replacement = ""))
+# write.table(x=results, "DOSTraits/formatted_allcustom_filtered.txt", row.names = F, quote = F, sep = "\t", col.names = F)
+# 
+# 
+# results <- read.table(file = "DOSTraits/formatted_allcustom_filtered.txt", sep ="\t", header = F, quote = "")
+# # get the KOs
+# genomesscaffolds <- read.table("DOSTraits/genomes-scaffolds-membership.tsv")
+# genomesscaffolds$V1 <- paste0(genomesscaffolds$V1, "-")
+# 
+# # assign the genome ids to the results file
+# results$V20 <- genomesscaffolds$V2[match(results$V2, genomesscaffolds$V1)]
+# write.table(x = results, file = "DOSTraits/kofam_results/formatted_allcustom_filtered_withgenomes.txt", sep = "\t", quote = F, col.names = T)
+# 
+# #concatenate results files
+# results <- read.table("DOSTraits/kofam_results/formatted_all_filtered_results_withgenomes.txt", sep = "\t", header = T, quote = "")
+# results1 <- read.table("DOSTraits/kofam_results/formatted_all_filtered_results_addKO_withgenomes.txt", sep = "\t", header = T, quote = "")
+# results2 <- read.table("DOSTraits/kofam_results/formatted_allcustom_filtered_withgenomes.txt", sep = "\t", header = T, quote = "")
+# # from these three files, we really just want the genome and the KO/hmm name
+# names(results)[c(8,3)] <- c("Genome", "GeneName")
+# names(results1)[c(8,3)] <- c("Genome", "GeneName")
+# names(results2)[c(20,3)] <- c("Genome", "GeneName")
+# results3 <- rbind(results[,c(8,3)], results1[,c(8,3)], results2[,c(20,3)])
+# #save
+# write.table(x = results3, file = "DOSTraits/kofam_results/formatted_allcustom_and_KOs_filtered_withgenomes.txt", sep = "\t", quote = F, col.names = T)
 
-#enter for the pathway
+results <- read.table("DOSTraits/kofam_results/formatted_allcustom_and_KOs_filtered_withgenomes.txt", sep = "\t", header = T, quote = "")
+
+#enter for the pathways
 #ps <- length(unique(sulfateKOs$Pathway.Number))
-for (p in  (4)){
+for (p in (2:55)){
   sulfateKO <- sulfateKOs %>%
     filter(Pathway.Number == p)
 
   # make these KOs OR steps the columns in a df and filter the results to those KOs
   df <- as.data.frame(matrix(ncol=length(sulfateKO$StepKOs), nrow=0))
   names(df) <- sulfateKO$StepKOs
-  result <- results %>% filter(V3 %in% sulfateKO$KO)
+  result <- results %>% filter(GeneName %in% sulfateKO$KO)
 
   #enter for the genome
   for (g in 1:nrow(genomessums)){
     # filter the hits in the all filtered hits file to just the one genome
-    result1 <- result %>% filter(V8 == genomessums$Genome[g])
+    result1 <- result %>% filter(Genome == genomessums$Genome[g])
 
     # enter for that KO
     for (k in 1:length(sulfateKO$KO)){
       # filter to one column at a time in the already filtered df
       # add value to that row/column combination
-      if (sulfateKO$KO[k] %in% result1$V3){
+      if (sulfateKO$KO[k] %in% result1$GeneName){
         df[g,k]<-1
       } else {
         df[g,k]<-0
@@ -65,7 +113,7 @@ for (p in  (4)){
 #where necessary, uncomment lines to make additional figures
 
 logics <- read.csv("DOSTraits/SulfateLogic.csv",header = 1)
-for (p in 4:length(na.omit(unique(sulfateKOs$Pathway.Number)))){
+for (p in 2:length(na.omit(unique(sulfateKOs$Pathway.Number)))){
   sulfateKO <- sulfateKOs %>%
     filter(Pathway.Number == p)
   # want to open the above file and see the max of each step
@@ -258,9 +306,6 @@ for (p in 4:length(na.omit(unique(sulfateKOs$Pathway.Number)))){
 }
 
 #write the empty max table
-# here we want redox state of the sulfur too - for this, does not look like I can use ggplot, so would have to move this into a different program (and keep in the wide, not long, format)
-# add annotation row for sulfate assimilation to show if it is an assimialtor, semiauxotroph or auxotroph.
-# we want the pathways as columns and the taxa as rows
 
 # for (p in 1:length(unique(sulfateKOs$Pathway.Number))){
 #   
