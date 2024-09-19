@@ -17,12 +17,12 @@
 3,Cysteine Biosynthesis,7,"16,17"
 3,Cysteine Biosynthesis,8,"18,19,17"
 3,Cysteine Biosynthesis,9,"20,21,3,5"
-4,SO4/thiosulfate transporter,1,"1,2,3"
+4,SO4thiosulfate transporter,1,1
 5,Methionine Synthesis,1,"1,2,3,4"
 5,Methionine Synthesis,2,"5,2,3,6"
 5,Methionine Synthesis,3,"7,8,9"
 5,Methionine Synthesis,4,"10,11,12,9"
-6,Methionine Transport,1,"1,2,3"
+6,Methionine Transport,1,1
 7,Cysteine Degradation,1,"1,2"
 7,Cysteine Degradation,2,3
 7,Cysteine Degradation,3,4
