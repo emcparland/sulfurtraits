@@ -70,11 +70,38 @@ genomesscaffolds$V1 <- paste0(genomesscaffolds$V1, "-")
 # #save
 # write.table(x = results3, file = "DOSTraits/kofam_results/formatted_allcustom_and_KOs_filtered_withgenomes.txt", sep = "\t", quote = F, col.names = T)
 
-results <- read.table("DOSTraits/kofam_results/formatted_allcustom_and_KOs_filtered_withgenomes.txt", sep = "\t", header = T, quote = "")
+# # add new KOs from Oct 2, 2024:
+# 
+# results <- read.table("DOSTraits/all_filtered_results_addKO_Oct02.txt")
+# results <- results %>%
+#   mutate(V2 = gsub(V2, pattern = "gene_.*", replacement = ""))
+# write.table(x=results, "DOSTraits/formatted_all_filtered_results_addKO_Oct02.txt", row.names = F, quote = F, sep = "\t", col.names = F)
+# 
+# 
+# results <- read.table(file = "DOSTraits/formatted_all_filtered_results_addKO_Oct02.txt", sep ="\t", header = F, quote = "")
+# # get the KOs
+# genomesscaffolds <- read.table("DOSTraits/genomes-scaffolds-membership.tsv")
+# genomesscaffolds$V1 <- paste0(genomesscaffolds$V1, "-")
+# 
+# # assign the genome ids to the results file
+# results$V8 <- genomesscaffolds$V2[match(results$V2, genomesscaffolds$V1)]
+# write.table(x = results, file = "DOSTraits/kofam_results/formatted_all_filtered_results_addKO_Oct02_withgenomes.txt", sep = "\t", quote = F, col.names = T)
+# 
+# #concatenate results files
+# results <- read.table("DOSTraits/kofam_results/formatted_allcustom_and_KOs_filtered_withgenomes.txt", sep = "\t", header = T, quote = "")
+# results1 <- read.table("DOSTraits/kofam_results/formatted_all_filtered_results_addKO_Oct02_withgenomes.txt", sep = "\t", header = T, quote = "")
+# # from these three files, we really just want the genome and the KO/hmm name
+# 
+# names(results1)[c(8,3)] <- c("Genome", "GeneName")
+# results3 <- rbind(results[,c(1,2)], results1[,c(8,3)])
+# #save
+# write.table(x = results3, file = "DOSTraits/kofam_results/formatted_allcustom_and_KOs_filtered_withgenomes_Oct02.txt", sep = "\t", quote = F, col.names = T)
+
+results <- read.table("DOSTraits/kofam_results/formatted_allcustom_and_KOs_filtered_withgenomes_Oct02.txt", sep = "\t", header = T, quote = "")
 
 #enter for the pathways
-#ps <- length(unique(sulfateKOs$Pathway.Number))
-for (p in (2:55)){
+#ps <- c(1:length(na.omit(unique(sulfateKOs$Pathway.Number))))
+for (p in c(8,9,10,11,12)){
   sulfateKO <- sulfateKOs %>%
     filter(Pathway.Number == p)
 
@@ -113,7 +140,8 @@ for (p in (2:55)){
 #where necessary, uncomment lines to make additional figures
 
 logics <- read.csv("DOSTraits/SulfateLogic.csv",header = 1)
-for (p in 2:length(na.omit(unique(sulfateKOs$Pathway.Number)))){
+#1:length(na.omit(unique(sulfateKOs$Pathway.Number)))
+for (p in c(1:length(na.omit(unique(sulfateKOs$Pathway.Number))))){
   sulfateKO <- sulfateKOs %>%
     filter(Pathway.Number == p)
   # want to open the above file and see the max of each step
@@ -296,7 +324,7 @@ for (p in 2:length(na.omit(unique(sulfateKOs$Pathway.Number)))){
     dplyr::summarise_all("mean")
   s_dfsteps75 <- gather( s_dfsteps75[,1:(ncol(s_dfsteps75)-2)], key = "key", value = "value", Step1:MaxCompletion)
   plot <- ggplot(s_dfsteps75, aes(x=factor(key, level=unique(s_dfsteps75$key)), y = Group, fill = value)) +
-    geom_tile() + scale_fill_viridis_c(option = "rocket", direction = -1) +
+    geom_tile() + scale_fill_viridis_c(option = "rocket", direction = -1, limits = c(0,1)) +
     labs(title = paste0(unique(sulfateKOs$Broad.pathway.description[which(sulfateKOs$Pathway.Number == p)]), ": Step Summaries for Genomes above 75% Complete"),
          x = "Step or Calculation",
          y = "Group")
