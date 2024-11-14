@@ -334,11 +334,194 @@ for (p in c(1:length(na.omit(unique(sulfateKOs$Pathway.Number))))){
 }
 
 #write the empty max table
+maxtable <- data.frame(matrix(nrow=nrow(read.csv(paste0("DOSTraits/kofam_results/",unique(sulfateKOs$Broad.pathway.description[which(sulfateKOs$Pathway.Number == 2)]),"processed_above75genomecompletion.csv"), row.names = 1)),ncol=(length(na.omit(unique(sulfateKOs$Pathway.Number)))-1)))
 
-# for (p in 1:length(unique(sulfateKOs$Pathway.Number))){
-#   
-# }
-# 
+for (p in 2:length(na.omit(unique(sulfateKOs$Pathway.Number)))){
+  sulfateKO <- sulfateKOs %>%
+    filter(Pathway.Number == p)
+  # want to open the above file and see the max of each step
+  df <- read.csv(paste0("DOSTraits/kofam_results/",unique(sulfateKOs$Broad.pathway.description[which(sulfateKOs$Pathway.Number == p)]),"processed_above75genomecompletion.csv"), row.names = 1)
+  maxtable[,p-1]<- df$MaxCompletion
+  names(maxtable)[p-1]<- unique(sulfateKOs$Broad.pathway.description[which(sulfateKOs$Pathway.Number == p)])
+}
+ 
+row.names(maxtable)<- row.names(df)
+
+write.csv(x = maxtable, file = "DOSTraits/kofam_results/summary_max_table.csv", row.names = T)
+groups <- data.frame(df$Group)
+row.names(groups)<- row.names(df)
+groups$df.Group <- as.factor(groups$df.Group)
+names(groups) <- c("Group")
+
+library(pheatmap)
+
+save_pheatmap_png <- function(x, filename, width=12, height=12) {
+  pdf(filename, width = width, height = height)
+  grid::grid.newpage()
+  grid::grid.draw(x$gtable)
+  dev.off()
+}
+plot <- pheatmap(maxtable, cluster_rows = T, show_rownames =F)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_1.pdf")
+
+my_colour  = c(`Acidobacteriota` = "#c19aff", `Actinobacteriota` = "#ff9ac2", `Alpha−Other` = "#db6ad9", `Alpha−Pelagibacter` = "#7e2799", `Alpha−Puniceispirilla` = "#ff70d1", `Alpha−Rhodobacter` ="#df8eff",
+                              `Alpha−Rhodobacter−LowGC` = "380c60", `Archaea−Halobacteria` = "#54db76", `Archaea−Nitrosopumilaceae` = "#01c887", `Archaea−Other` = "#004f02", `Archaea−Poseidoniia MGIIa` = "#008b4d", 
+                              `Archaea−Poseidoniia MGIIb` = "#3c5c00", `Bacteria−Other` = "#757500", `Bacteroidota`="#e89126", `Chloroflexota`="#c8de7a", `Cyano−Other`="#01eacc", `Cyano−Pro`="#0170d5", `Cyano−Syn`="#93b6ff", `Dadabacteria`="#d25523", 
+                              `Firmicutes` = "#74508f", `Gamma−Alteromonas`="#ee3f74", `Gamma−Other`="#870013", `Gamma−SAR86`="#ff609c", `Gamma−SAR92`="#e54c44", `Gemmatimonadota`="#ffab4f", `Marinisomatota`="#8c0050", `Other`="#ffa35e", 
+                              `Patescibacteria`="#610020", `Planctomycetota`="#ffa87c", `SAR324`="#754014", `Verrucomicrobiota`="#a56500")
+my_colour  = list(Group = c("#c19aff",  "#ff9ac2", "#db6ad9", "#7e2799","#ff70d1","#df8eff", "380c60", "#54db76", "#01c887",  "#004f02", "#008b4d", 
+                "#3c5c00", "#757500", "#e89126", "#c8de7a", "#01eacc","#0170d5", "#93b6ff", "#d25523", 
+                "#74508f", "#ee3f74", "#870013", "#ff609c", "#e54c44", "#ffab4f", "#8c0050", "#ffa35e", 
+               "#610020", "#ffa87c", "#754014", "#a56500"))
+
+plot <- pheatmap(maxtable, cluster_rows = T, annotation_row = groups, show_rownames =F)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_2.pdf")
+my_colour  = list(Group = c(Acidobacteriota = "#c19aff", Actinobacteriota = "#ff9ac2", AlphaOther = "#db6ad9", AlphaPelagibacter = "#7e2799", AlphaPuniceispirilla = "#ff70d1", AlphaRhodobacter ="#df8eff",
+               AlphaRhodobacterLowGC = "#380c60", ArchaeaHalobacteria = "#54db76", ArchaeaNitrosopumilaceae = "#01c887", ArchaeaOther = "#004f02", ArchaeaPoseidoniiaMGIIa = "#008b4d", 
+               ArchaeaPoseidoniiaMGIIb = "#3c5c00", BacteriaOther = "#757500", Bacteroidota="#e89126", Chloroflexota="#c8de7a", CyanoOther="#01eacc", CyanoPro="#0170d5", CyanoSyn="#93b6ff", Dadabacteria="#d25523", 
+               Firmicutes = "#74508f", GammaAlteromonas="#ee3f74", GammaOther="#870013", GammaSAR86="#ff609c", GammaSAR92="#e54c44", Gemmatimonadota="#ffab4f", Marinisomatota="#8c0050", Other="#ffa35e", 
+               Patescibacteria="#610020", Planctomycetota="#ffa87c", SAR324="#754014", Verrucomicrobiota="#a56500"))
+groups$Group <- gsub(pattern = "-", replacement = "", x = groups$Group)
+groups$Group <- gsub(pattern = " ", replacement = "", x = groups$Group)
+plot <- pheatmap(maxtable, cluster_rows = T, annotation_row = groups, show_rownames =F, annotation_colors = my_colour)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_3.pdf")
+
+SA_status <- read.csv("DOSTraits/new_filtered_SA/2024_June19_ERIN_SulfateAssimilationprocessed_above75genomecompletion.csv", row.names = 2)
+SA_status_1 <- data.frame(SA_status$Lifestyle)
+row.names(SA_status_1) <- row.names(SA_status)
+SA_status_1$SA_status.Lifestyle <- as.factor(SA_status_1$SA_status.Lifestyle)
+plot <- pheatmap(maxtable, cluster_rows = T, annotation_row = SA_status_1, show_rownames =F)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_4.pdf")
+
+my_colour2  = list(Group = c(Acidobacteriota = "#c19aff", Actinobacteriota = "#ff9ac2", AlphaOther = "#db6ad9", AlphaPelagibacter = "#7e2799", AlphaPuniceispirilla = "#ff70d1", AlphaRhodobacter ="#df8eff",
+                            AlphaRhodobacterLowGC = "#380c60", ArchaeaHalobacteria = "#54db76", ArchaeaNitrosopumilaceae = "#01c887", ArchaeaOther = "#004f02", ArchaeaPoseidoniiaMGIIa = "#008b4d", 
+                            ArchaeaPoseidoniiaMGIIb = "#3c5c00", BacteriaOther = "#757500", Bacteroidota="#e89126", Chloroflexota="#c8de7a", CyanoOther="#01eacc", CyanoPro="#0170d5", CyanoSyn="#93b6ff", Dadabacteria="#d25523", 
+                            Firmicutes = "#74508f", GammaAlteromonas="#ee3f74", GammaOther="#870013", GammaSAR86="#ff609c", GammaSAR92="#e54c44", Gemmatimonadota="#ffab4f", Marinisomatota="#8c0050", Other="#ffa35e", 
+                            Patescibacteria="#610020", Planctomycetota="#ffa87c", SAR324="#754014", Verrucomicrobiota="#a56500"),
+                  Lifestyle = c(assimilator = "black", auxotroph = "white", incomplete = "grey"))
+SA_status_2 <- data.frame(SA_status_1[match(row.names(groups), row.names(SA_status_1)),])
+row.names(SA_status_2) <- row.names(SA_status_1)[match(row.names(groups), row.names(SA_status_1))]
+names(SA_status_2) <- c("Lifestyle")
+annotations <- cbind(groups, SA_status_2)
+plot <- pheatmap(maxtable, cluster_rows = T, annotation_row = annotations, show_rownames =F, annotation_colors = my_colour2)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_5.pdf")
+
+# add oxidation state per pathway
+oxstates <- as.data.frame(numeric(42))
+row.names(oxstates) <- names(maxtable)
+names(oxstates) <- c("Oxidation State")
+ox <- c(-2, 6,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2)
+oc <- c(ox, -2,-2,4,4,-2,4,4,4,4,4,4,4,-2,6,6,4,-2,-2,-2,-2,-2,-2,-1,0,0,4,4,4,4,-2)
+oxstates$`Oxidation State` <- as.factor(oc)
+my_colour3  = list(Group = c(Acidobacteriota = "#c19aff", Actinobacteriota = "#ff9ac2", AlphaOther = "#db6ad9", AlphaPelagibacter = "#7e2799", AlphaPuniceispirilla = "#ff70d1", AlphaRhodobacter ="#df8eff",
+                             AlphaRhodobacterLowGC = "#380c60", ArchaeaHalobacteria = "#54db76", ArchaeaNitrosopumilaceae = "#01c887", ArchaeaOther = "#004f02", ArchaeaPoseidoniiaMGIIa = "#008b4d", 
+                             ArchaeaPoseidoniiaMGIIb = "#3c5c00", BacteriaOther = "#757500", Bacteroidota="#e89126", Chloroflexota="#c8de7a", CyanoOther="#01eacc", CyanoPro="#0170d5", CyanoSyn="#93b6ff", Dadabacteria="#d25523", 
+                             Firmicutes = "#74508f", GammaAlteromonas="#ee3f74", GammaOther="#870013", GammaSAR86="#ff609c", GammaSAR92="#e54c44", Gemmatimonadota="#ffab4f", Marinisomatota="#8c0050", Other="#ffa35e", 
+                             Patescibacteria="#610020", Planctomycetota="#ffa87c", SAR324="#754014", Verrucomicrobiota="#a56500"),
+                   Lifestyle = c(assimilator = "black", auxotroph = "white", incomplete = "grey"),
+                   `Oxidation State` = c(`-2` = "darkcyan", `-1`= "cyan", `0`="white", `4`="brown1", `6`="brown4"))
+
+plot <- pheatmap(maxtable, cluster_rows = T, annotation_row = annotations, show_rownames =F, annotation_col = oxstates, annotation_colors = my_colour3)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_6.pdf")
+
+# going to eliminate some of the pathways (all transport except isethionate and N-acetyltaaurine, plus some empty ones, plus fusion enzyme)
+# here we have to make a new maxtable:
+maxtable2 <- maxtable[,-c(4,9,12,14,15,18,24,25,27,29,39)]
+maxtable3 <- maxtable[,-c(4,7,8,9,10,11,12,14,15,18,24,25,27,29,39)]
+metsaltable <- maxtable[,c(7,8,9,10,11)]
+plot <- pheatmap(maxtable2, cluster_rows = T, annotation_row = annotations, show_rownames =F, annotation_col = oxstates, annotation_colors = my_colour3)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_7.pdf")
+plot <- pheatmap(maxtable3, cluster_rows = T, annotation_row = annotations, show_rownames =F, annotation_col = oxstates, annotation_colors = my_colour3)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_8.pdf")
+plot <- pheatmap(metsaltable, cluster_rows = T, annotation_row = annotations, show_rownames =F, annotation_col = oxstates, annotation_colors = my_colour3)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_9.pdf",  width=6, height=12)
+
+# do the above figures but simiplifying any in between value to 0.5 to see if we get a better signal out of the individual genomes
+mypalettelength <- 50
+mycolor <- viridis::rocket(mypalettelength,direction = -1)
+mybreaks <- c(seq(min(maxtable), 0.001, length.out=ceiling(mypalettelength/2)),0.5, seq(0.999, max(maxtable), length.out=floor(mypalettelength/2)))
+plot <- pheatmap(maxtable, cluster_rows = T, annotation_row = annotations, show_rownames =F, annotation_col = oxstates, annotation_colors = my_colour3, breaks = mybreaks, color = mycolor)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_10.pdf")
+
+plot <- pheatmap(maxtable2, cluster_rows = T, annotation_row = annotations, show_rownames =F, annotation_col = oxstates, annotation_colors = my_colour3, breaks = mybreaks, color = mycolor)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_11.pdf")
+
+plot <- pheatmap(maxtable3, cluster_rows = T, annotation_row = annotations, show_rownames =F, annotation_col = oxstates, annotation_colors = my_colour3, breaks = mybreaks, color = mycolor)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_12.pdf",  width=12, height=12)
+
+plot <- pheatmap(metsaltable, cluster_rows = T, annotation_row = annotations, show_rownames =F, annotation_col = oxstates, annotation_colors = my_colour3, breaks = mybreaks, color = mycolor)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_13.pdf",  width=6, height=12)
+# going to get the averages per taxanomic group with all pathways, from maxtable
+maxtablesimp <- maxtable
+maxtablesimp$Groups <- groups[match( row.names(maxtable), row.names(groups)),]
+mean_maxtablesimp <- maxtablesimp %>%
+  group_by(Groups) %>%
+  dplyr::summarise_all("mean")
+maxtable2simp <- maxtable2
+maxtable2simp$Groups <- groups[match( row.names(maxtable2), row.names(groups)),]
+mean_maxtable2simp <- maxtable2simp %>%
+  group_by(Groups) %>%
+  dplyr::summarise_all("mean")
+maxtable3simp <- maxtable3
+maxtable3simp$Groups <- groups[match( row.names(maxtable3), row.names(groups)),]
+mean_maxtable3simp <- maxtable3simp %>%
+  group_by(Groups) %>%
+  dplyr::summarise_all("mean")
+metsaltablesimp <- metsaltable
+metsaltablesimp$Groups <- groups[match( row.names(metsaltable), row.names(groups)),]
+mean_metsaltablesimp <- metsaltablesimp %>%
+  group_by(Groups) %>%
+  dplyr::summarise_all("mean")
+mean_maxtablesimp <- as.data.frame(mean_maxtablesimp)
+mean_maxtable2simp <- as.data.frame(mean_maxtable2simp)
+mean_maxtable3simp <- as.data.frame(mean_maxtable3simp)
+mean_metsaltablesimp <- as.data.frame(mean_metsaltablesimp)
+row.names(mean_maxtablesimp)<- mean_maxtablesimp$Groups
+row.names(mean_maxtable2simp)<- mean_maxtable2simp$Groups
+row.names(mean_maxtable3simp)<- mean_maxtable3simp$Groups
+row.names(mean_metsaltablesimp)<- mean_metsaltablesimp$Groups
+mean_maxtablesimp <- mean_maxtablesimp[,2:43]
+mean_maxtable2simp <- mean_maxtable2simp[,2:33]
+mean_maxtable3simp <- mean_maxtable3simp[,2:28]
+mean_metsaltablesimp <- mean_metsaltablesimp[,2:6]
+
+SA_status3 <- as.data.frame(cbind( SA_status$MaxCompletion, SA_status$taxa_elm))
+names(SA_status3) <- c("MaxCompletion", "Group")
+SA_status3$MaxCompletion <- as.numeric(SA_status3$MaxCompletion)
+row.names(SA_status3) <- row.names(SA_status)
+mean_SA_status <- SA_status3 %>%
+  group_by(Group) %>%
+  dplyr::summarise_all("mean")
+groupnames <- mean_SA_status$Group
+mean_SA_status <- as.data.frame(mean_SA_status$MaxCompletion)
+groupnames <- gsub(x=groupnames, "-", "")
+groupnames <- gsub(x=groupnames, " ", "")
+row.names(mean_SA_status) <- groupnames
+names(mean_SA_status) <- c("MaxCompletionAverage")
+my_colour4  = list( MaxCompletionAverage = c( `0` = "white", `1` = "black"),
+                   `Oxidation State` = c(`-2` = "darkcyan", `-1`= "cyan", `0`="white", `4`="brown1", `6`="brown4"))
+plot <- pheatmap(mean_maxtablesimp, cluster_rows = T, annotation_row = mean_SA_status, show_rownames =T, annotation_col = oxstates, annotation_colors = my_colour4)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_14.pdf")
+
+# averages per taxanomic group with only the important pathways for summary, from maxtable2, maxtable3, and metsaltable
+plot <- pheatmap(mean_maxtable2simp, cluster_rows = T, annotation_row = mean_SA_status, show_rownames =T, annotation_col = oxstates, annotation_colors = my_colour4)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_15.pdf")
+plot <- pheatmap(mean_maxtable3simp, cluster_rows = T, annotation_row = mean_SA_status, show_rownames =T, annotation_col = oxstates, annotation_colors = my_colour4)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_16.pdf")
+plot <- pheatmap(mean_metsaltablesimp, cluster_rows = T, annotation_row = mean_SA_status, show_rownames =T, annotation_col = oxstates, annotation_colors = my_colour4)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_17.pdf")
+
+plot <- pheatmap(mean_maxtablesimp, cluster_rows = T, annotation_row = mean_SA_status, show_rownames =T, annotation_col = oxstates, annotation_colors = my_colour4, color = mycolor)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_18.pdf")
+plot <- pheatmap(mean_maxtable2simp, cluster_rows = T, annotation_row = mean_SA_status, show_rownames =T, annotation_col = oxstates, annotation_colors = my_colour4, color = mycolor)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_19.pdf")
+plot <- pheatmap(mean_maxtable3simp, cluster_rows = T, annotation_row = mean_SA_status, show_rownames =T, annotation_col = oxstates, annotation_colors = my_colour4, color = mycolor)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_20.pdf")
+plot <- pheatmap(mean_metsaltablesimp, cluster_rows = T, annotation_row = mean_SA_status, show_rownames =T, annotation_col = oxstates, annotation_colors = my_colour4, color = mycolor)
+save_pheatmap_png(plot, "DOSTraits/kofam_results/summary_heatmap_21.pdf")
+
+# work on the figure from the paper:
+
 
 #extra figures for sulfate assimilation
 # for (p in c(1)){
