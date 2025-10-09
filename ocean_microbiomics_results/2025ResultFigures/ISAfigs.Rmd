@@ -1,0 +1,1234 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+ 
+Setup compute space
+```{r some setup}
+library(vegan)
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(tidyr)
+library(stats)
+library(indicspecies)
+library(clValid)
+library(factoextra)
+library(pheatmap)
+library(dendextend)
+library(ggrepel)
+library(ComplexHeatmap)
+library(ComplexUpset)
+library(viridis)
+
+p.theme <- theme_bw()+theme(text = element_text(size = 12))
+p.theme_xangle <- theme_bw()+theme(text = element_text(size = 12, family="serif"),
+                                   axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+
+life.colors <- c('#fc8d59','grey','#91bfdb')
+names(life.colors) <- c('auxotroph','incomplete','assimilator')
+
+#pathway names
+icols <- c("#a24758","#e38288","#d64157","#d44f2a","#a5562e","#e18c54","#dda12d","#88672e","#cfaf67","#a6882c","#adb92f","#8c9152","#738122","#576321","#95b254","#75c046","#95bb7b","#427d31","#449b3b","#40c85d","#52c485","#337b53","#56b18d","#288f88","#48cbcd","#61a2da","#5b70b5","#626cd4","#9657ca","#c690d1","#d260c4","#974f89","#d5488e")
+names(icols) <- colnames(abund.sub.min)
+#taxa colors
+tcols <- c("#d3004b","#8b373f","#ff4f60","#ac6863","#b80020","#fdb5a0","#cb6300","#e7c087","#f2b707","#cbcd29","#475907","#8ab200","#95d86c","#008014","#44c442","#01e1a1","#00956e","#009083","#0085e8","#0270f9","#aa79ff","#7431a2","#eb8dff","#ffa8f2","#ff7be8","#ff8bd9","#c30099","#7e486b","#962166","#ffa1c0")
+names(tcols) <- sort(unique(df$taxa_elm))
+```
+
+
+Load in data
+```{r data setup}
+setwd("/Users/michelle/Documents/DOSTraits/")
+# table with info about sulfate assimilation, filtered for 75% completion
+taxa <- read.csv("/Users/michelle/Documents/DOSTraits/new_filtered_SA/2024_June19_ERIN_SulfateAssimilationprocessed_above75genomecompletion.csv")[,-1]
+head(taxa)
+# original taxonomy meta table from microbiomics group, with updated taxa_elm column 12/9/2024
+taxa_all <- read.csv("/Users/michelle/Documents/DOSTraits/genome_summary_ELM_2.csv")
+taxa <- merge(taxa,taxa_all,by="Genome", all.y=F)
+# there will be two taxa_elm columns right now, again because of the update 12/9/2024, compare here for sanity check
+taxa %>% group_by(taxa_elm.x,taxa_elm.y) %>% summarise(n=n()) %>% filter(taxa_elm.x != taxa_elm.y)
+# this is correct so get rid of the old taxa_elm and keep the new
+taxa <- taxa %>% dplyr::select(-taxa_elm.x) %>% rename(taxa_elm = taxa_elm.y)
+# also have repetitive Mean.Completeness column
+all(taxa$Mean.Completeness.x == taxa$Mean.Completeness.y)
+taxa <- taxa %>% dplyr::select(-Mean.Completeness.x) %>% rename(Mean.Completeness = Mean.Completeness.y)
+# read in summary results
+df <- read.csv("/Users/michelle/Documents/DOSTraits/kofam_results/summary_max_table.csv")
+colnames(df)[1] <- "strain"
+df <- merge(taxa[,c('Genome','taxa_elm','Mean.Completeness','Lifestyle')],df, by.x = "Genome", by.y = "strain")
+abund <- as.matrix(df[,5:46])
+dim(abund) #vegan community data matrix; rows='samples', columns = 'species'; here samples = MAGs, traits = species
+
+#remove any genomes not assigned a GTDB taxonomy.
+idx <- which(is.na(taxa$Phyla))
+length(idx)
+abund <- abund[-idx,]
+df <- df[-idx,]
+taxa <- taxa[-idx,]
+#remove any MAGs with only zeros
+idx <- which(rowSums(abund) == 0)
+length(idx)
+abund <- abund[-idx,]
+df <- df[-idx,]
+taxa <- taxa[-idx,]
+dim(taxa)
+```
+
+
+
+Numbers for writing the sulfate assimilation section
+```{r}
+
+steps <- data.frame(step.no = c(1,2,2,2,3,4,5,5,6,7,8,8,9), 
+                    ko = c("K13811","K00955","K00956","K00957","K00958","K13811","K00955","K00860","K00390","K05907","K00380","K00381","K00392"),
+                    gene.name = c("papss","cysNC","cysN","cysD","sat","papss","cysNC","cysC","cysH","apr","cysJ","cysI","sir"))
+
+taxa %>% group_by(MaxCompletion) %>%
+  mutate(MaxCompletion = case_when(MaxCompletion >0 & MaxCompletion < 1 ~ 0.5, TRUE ~ MaxCompletion)) %>%
+  summarise(n())
+
+#complete pathways
+taxa %>%
+  group_by(taxa_elm,Lifestyle) %>%
+  summarise(n=n()) %>%
+  pivot_wider(names_from = Lifestyle, values_from = n) %>%
+  mutate(assimilator = case_when(is.na(assimilator) ~ 0, TRUE ~ assimilator),
+         auxotroph = case_when(is.na(auxotroph) ~ 0, TRUE ~ auxotroph),
+         incomplete = case_when(is.na(incomplete) ~ 0, TRUE ~ incomplete)) %>%
+  mutate(tot = assimilator+auxotroph+incomplete) %>%
+  mutate(per = assimilator/tot) %>%
+  arrange(desc(per))
+ 
+taxa %>% 
+  mutate(MaxCompletion = case_when(MaxCompletion < 1 ~ 0, TRUE ~ MaxCompletion)) %>%
+  group_by(taxa_elm,MaxCompletion) %>%
+  summarise(n =n()) %>%
+  pivot_wider(names_from = MaxCompletion, values_from = n) %>%
+  mutate(tot = (`1`+`0`)) %>%
+  mutate(per = `1`/tot) %>%
+  arrange(desc(per))
+  
+steps %>% arrange(step.no)
+
+# cysND
+# sat
+taxa %>%
+  filter(Step1 == 0 & Step2 == 0 & Step3 == 1) %>% dim #& Step4 == 0 & Step5 == 0 & Step6 ==0 & Step7 == 0 & Step8 == 0 & Step9 == 0) %>% dim
+# papss
+taxa %>%
+  filter(Step1 == 1 & Step2 == 0 & Step3 == 0) %>% dim #& Step4 == 0 & Step5 == 0 & Step6 ==0 & Step7 == 0 & Step8 == 0 & Step9 == 0) %>% dim
+
+
+```
+
+# Protein calculations
+```{r}
+protein.summary <- read.csv("data/protein.summary.out.csv")[,-1]
+
+head(protein.summary)
+dim(protein.summary)
+
+all(protein.summary$genome %in% taxa$Genome)
+
+protein.summary <- merge(taxa,protein.summary,by.x="Genome",by.y="genome",all.y=F)
+head(protein.summary)
+
+#plotting GC vs S content to compare with previous work
+protein.summary %>%
+  ggplot(aes(x = GC.Content, y = perS.mu))+geom_point()+
+  xlab("GC Content")+ylab("Calculated S protein content")+
+  p.theme
+
+#plotting S content vs temperature
+protein.summary %>%
+  ggplot(aes(x = temperature....C., y = perS.mu))+geom_point()+
+  xlab("Temperature (C)")+ylab("Calculated S protein content")+
+  p.theme
+
+protein.summary %>%
+  group_by(Lifestyle) %>% 
+  summarise(mean(perS.mu)*100, sd(perS.mu)*100, mean(perC.mu)*100,sd(perC.mu)*100, mean(perM.mu)*100, sd(perM.mu)*100)
+
+# oneway anova
+res.aov <- aov(perS.mu ~ Lifestyle, data = protein.summary)
+# Summary of the analysis
+summary(res.aov)
+TukeyHSD(res.aov)
+t.test(perS.mu ~ Lifestyle, data = protein.summary[-which(protein.summary$Lifestyle == "incomplete"),])
+
+
+
+protein.summary %>%
+  filter(Mean.Completeness > 85) %>%
+  #filter(taxa_elm != "Alpha-Pelagibacter") %>%
+  mutate(rank.no = dense_rank(perS.mu)) %>%
+  ggplot(aes(x = perS.mu, color = Lifestyle))+
+  stat_ecdf(size = 3)+
+  p.theme+
+  scale_color_manual(values = life.colors)+
+  xlab('Average sulfur protein content')+
+  ylab('quantile')
+
+protein.summary %>%
+  group_by(taxa_elm) %>%
+  summarise(mu = mean(perS.mu), sdev = sd(perS.mu), tot = n()) %>%
+  mutate(rank.no = dense_rank(mu)) %>%
+  ggplot(aes(x = rank.no, y = mu, color = taxa_elm))+
+  geom_hline(yintercept = 0.034,linetype = "dashed")+
+  geom_hline(yintercept = 0.038,linetype = "dashed")+
+  geom_point(aes(size = tot))+
+  geom_errorbar(aes(ymin = mu-sdev, ymax = mu+sdev))+
+  scale_color_manual(values = tcols)+
+  p.theme+
+  xlab('Rank order')+
+  ylab('Mean sulfur protein content')
+
+```
+
+
+```{r}
+taxa %>% group_by(Lifestyle) %>%
+  summarise(n = n()) %>%
+  mutate(per = n/sum(n))
+taxa %>%
+  group_by(Lifestyle) %>%
+  summarise(mean(Genome.size),sd(Genome.size),n())
+  #summarise(mean(GC.Content),sd(GC.Content),n())
+  #summarise(mean(Coding.density),sd(Coding.density),n())
+
+# comparing mean completeleness
+x  =c("Alpha-Pelagibacter","Gamma-SAR86","Patescibacteria","Firmicutes","SAR324","Alpha-Puniceispirilla","Marinisomatota")
+
+for(i in 1:length(x)){
+  
+  j = taxa %>% filter(taxa_elm == x[i] & Lifestyle == "auxotroph") %>% pull(Mean.Completeness)
+  k = taxa %>% filter(taxa_elm == x[i] & Lifestyle != "auxotroph") %>% pull(Mean.Completeness)
+  
+  print(x[i])
+  print(wilcox.test(j,k)$p.value)
+  print(t.test(j,k)$p.value)
+  
+}
+tmp <- 
+  taxa %>% 
+  mutate(type = grepl("REFG",Genome)) %>%
+  filter(type == F) %>%
+  mutate(Lifestyle = case_when(Lifestyle == "incomplete" ~"auxotroph", TRUE ~ Lifestyle)) %>%
+  mutate(anova_group = case_when(Lifestyle == "auxotroph" ~ paste0(Lifestyle,"_",taxa_elm), TRUE ~ Lifestyle))
+
+tmp <- taxa %>%
+  filter(taxa_elm %in% x) %>%
+  mutate(anova_group = paste0(taxa_elm,"_",Lifestyle))
+
+kruskal.test(Mean.Completeness ~ anova_group, data = tmp)
+out <- pairwise.wilcox.test(tmp$Mean.Completeness, g= tmp$anova_group, p.adjust.method = "BH")
+sort(out$p.value[,1])
+```
+
+
+```{r}
+p <- sort(unique(colnames(df))[-c(1:4)])
+p <- p[c(1:4,9:13,20:23,34,37:42)]
+df %>% filter(taxa_elm == "SAR86" | taxa_elm == "Alpha-Pelagibacter" | taxa_elm == "Alpha-Rhodobacter"|
+                taxa_elm == "Bacteroidota" | taxa_elm == "Alpha-Puniceispirilla" | 
+                taxa_elm == "Gamma-Alteromonadaceae" | taxa_elm == "Gamm-SAR92"|
+                taxa_elm == "Firmicutes") %>%
+  select(-Lifestyle,-Mean.Completeness,-Genome) %>% 
+  pivot_longer(cols = 2:43) %>%
+  filter(name %in% p) %>% 
+  filter(value == 1) %>%
+  select(-value) %>%
+  group_by(taxa_elm,name) %>%
+  summarise(n = n()) %>%
+  group_by(name) %>%
+  mutate(tot = sum(n)) %>%
+  mutate(per = n/tot) %>%
+  ggplot(aes(x = taxa_elm, y = name, fill = per))+
+  geom_tile()+
+  p.theme_xangle+
+  ylab('')+xlab('')
+```
+
+
+Looking at the % contamination per Luis's suggestion
+```{r}
+ggplot(taxa, aes(x = Mean.Completeness, y = Mean.Contamination))+geom_point()
+
+taxa %>% 
+  filter(Mean.Contamination > 10) %>% 
+  group_by(taxa_elm,Lifestyle) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(x = taxa_elm, y = n, fill = Lifestyle))+
+  geom_bar(stat ="identity")+p.theme_xangle+
+  ggtitle('Taxonomy of anything with >10% contamination')
+
+taxa %>% 
+  filter(Mean.Contamination > 10 & Mean.Completeness > 85) %>% 
+  group_by(taxa_elm,Lifestyle) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(x = taxa_elm, y = n, fill = Lifestyle))+
+  geom_bar(stat ="identity")+p.theme_xangle+
+  ggtitle('Taxonomy of >10% contam and > 85% completeness')
+```
+
+
+Look at all data
+```{r}
+df %>%
+  pivot_longer(cols = 5:46) %>%
+  group_by(Lifestyle, name, value) %>%
+  summarize(n = n()) %>%
+  ggplot(aes(x = value, y = n, fill = Lifestyle))+
+  geom_bar(stat = "identity", color = "black")+
+  facet_wrap(~name)+
+  p.theme_xangle+
+  scale_fill_manual(values = c('black','white','grey'))+
+  xlab('pathway completion')+ylab('strain count')
+
+# calculate numbers of lifestyles based on genome completeness
+df %>%
+  mutate(completeness.metric = case_when(Mean.Completeness > 90 ~ "c90", Mean.Completeness > 85 ~ "c85", Mean.Completeness > 70 ~ "c70")) %>%
+  group_by(Lifestyle, completeness.metric) %>%
+  summarise(n = n()) %>%
+  pivot_wider(names_from = completeness.metric, values_from = n)
+
+```
+
+# Subsetting to just the assimilators and auxotrophs and filtering by mean genome completeness
+```{r}
+# subset happens here
+t <- taxa %>%
+  filter(Lifestyle != "incomplete") %>%
+  filter(taxa_elm != "SAR324") %>%
+  filter(Mean.Completeness > 85) %>%
+  filter(Mean.Contamination < 10) %>% pull(Genome)
+idx <- which(df$Genome %in% t)
+df.sub <- df[idx,]
+abund.sub <- abund[idx,]
+
+
+# some numbers
+taxa %>%
+  filter(Lifestyle != "incomplete") %>%
+  filter(Mean.Completeness > 85) %>%
+  filter(Mean.Contamination < 10) %>%
+  group_by(Lifestyle) %>% summarise(n = n()) %>%
+  pivot_wider(names_from = Lifestyle, values_from = n) %>% 
+  mutate(tot = assimilator+auxotroph) %>%
+  mutate(per.aux = auxotroph/tot)
+  
+
+
+```
+
+```{r Numbers for writing}
+
+data.frame(abund.sub) %>%
+  pivot_longer(1:42) %>%
+  #mutate(value = case_when(value > 0 ~ 1, TRUE ~ value)) %>%
+  group_by(name,value) %>%
+  summarise(n = n()) %>%
+  group_by(name) %>%
+  mutate(tot = sum(n)) %>%
+  mutate(per = n/tot) %>%
+  #filter(value == 1) %>%
+  filter(value != 0) %>%
+  arrange(desc(per)) #%>%
+  #filter(name == "Methionine.Degradation")
+
+```
+
+
+# Also subsetting columns to be DOS molecules, rather than (a bias definition of) internal cycling
+```{r}
+colnames(abund.sub)
+#subset
+#idx <- c(grep("DOS.Misc", colnames(abund.sub)), grep("Salvage", colnames(abund.sub)), grep("SO4thio",colnames(abund.sub)))#,
+         #grep("Sulfo",colnames(abund.sub)), grep("homocysteine",colnames(abund.sub)),grep("Glutathione",colnames(abund.sub)),grep("lactone",colnames(abund.sub)))
+#abund.sub.min <- abund.sub[,-idx]
+abund.sub.min <- abund.sub
+dim(abund.sub.min)
+colnames(abund.sub.min)
+
+```
+# Work in presence/absence space
+The only remaining pathways that weren't presence/absence = choline o sulfate degradation, methionine synthesis, glutathione synthesis, methionine degradation. When using vegan decostand, anything greater than 1 is converted to 1 (i.e. you could manipulate the opposite so that a presence must be == 1).
+```{r}
+abund.sub.min <- decostand(abund.sub.min, method = "pa")
+# when you do this your cysteine biosynthesis column is all 1's so we will remove
+i = which(colSums(abund.sub.min) == 5008)
+abund.sub.min <- abund.sub.min[,-i]
+```
+
+
+# Alter columns again here if you want to remove 'core' metabolisms
+```{r}
+core.no <- colSums(abund.sub.min)/dim(abund.sub.min)[1]
+sort(core.no)
+#n <- names(which(core.no < 0.8))
+#abund.sub.min <- abund.sub.min[,n]
+
+#remove any new zero rows created
+#df.sub <- df.sub[-which(rowSums(abund.sub.min) == 0),]
+#abund.sub.min <- abund.sub.min[-which(rowSums(abund.sub.min) == 0),]
+
+
+```
+
+# Run this if you just want to compare auxotroph clustering
+```{r}
+idx = which(df.sub$Lifestyle == "auxotroph")
+df.sub <- df.sub[idx,]
+abund.sub.min <- abund.sub.min[idx,]
+```
+
+# Indicator species analysis with just the groups, no clustering
+```{r}
+any(rowSums(abund.sub.min) == 0)
+any(colSums(abund.sub.min) == 0)
+
+## Perform ISA on the two groups
+cut.life <- df.sub$Lifestyle #grouping for ISA
+ind <- multipatt(abund.sub.min, cluster = cut.life, duleg = TRUE) 
+summary(ind)
+
+## Get the output for scores A and B
+tmpA <- data.frame(ind$A) %>% mutate(ind.vari = rownames(ind$A)) %>% pivot_longer(cols = 1:2) %>% mutate(score = "A")
+tmpB <- data.frame(ind$B) %>% mutate(ind.vari = rownames(ind$A)) %>% pivot_longer(cols = 1:2) %>% mutate(score = "B")
+
+n <- tmpA %>% filter(name == "auxotroph" & value > 0.5 |
+                     name == "assimilator" & value > 0.5) %>% pull(ind.vari)
+rbind(tmpA,tmpB) %>%
+  pivot_wider(names_from  = score, values_from = value) %>%
+  mutate(score = sqrt(A*B)) %>%
+  pivot_wider(names_from = name, values_from = c(A,B,score)) %>%
+  mutate(score_diff = (score_assimilator - score_auxotroph)) %>%
+  mutate(indicator.group = case_when(score_diff < -0.05 ~ "auxotroph", score_diff > 0.05 ~ "assimilator", TRUE ~ "common")) %>%
+  dplyr::select(ind.vari, A_auxotroph,B_auxotroph,A_assimilator,B_assimilator,indicator.group) %>% 
+  pivot_longer(cols = 2:5) %>%
+  mutate(score = case_when(name == "A_auxotroph" | name == "A_assimilator" ~ "A",
+                           name == "B_auxotroph" | name == "B_assimilator" ~ "B")) %>%
+  mutate(type = case_when(name == "A_auxotroph" | name == "B_auxotroph" ~ "auxotroph",
+                           name == "A_assimilator" | name == "B_assimilator" ~ "assimilator")) %>%
+  dplyr::select(-name) %>%
+  pivot_wider(names_from = score, values_from = value) %>% 
+  ggplot(aes(x = A, y = B, shape = type, color = indicator.group))+
+  geom_hline(yintercept = 0.5)+
+  geom_vline(xintercept = 0.5)+
+  geom_point(size = 3)+
+  geom_line(aes(group=ind.vari))+
+  scale_color_manual(values = c('#2F397A','#415521','#A88205'))+
+  p.theme+
+  xlab('A score -> Specificity')+
+  ylab('B score -> Fidelity') 
+ggsave(plot = last_plot(), file = "/Users/michelle/Documents/DOSTraits/2025Results/fig4Varations/fig4_2.pdf", unit = "in", height = 7, width = 7) 
+
+rbind(tmpA,tmpB) %>%
+  pivot_wider(names_from  = score, values_from = value) %>%
+  mutate(score = sqrt(A*B)) %>%
+  pivot_wider(names_from = name, values_from = c(A,B,score)) %>%
+  mutate(score_diff = (score_assimilator - score_auxotroph)) %>%
+  mutate(indicator.group = case_when(score_diff < -0.05 ~ "auxotroph", score_diff > 0.05 ~ "assimilator", TRUE ~ "common")) %>%
+  dplyr::select(ind.vari, A_auxotroph,B_auxotroph,A_assimilator,B_assimilator,indicator.group) %>% 
+  pivot_longer(cols = 2:5) %>%
+  mutate(score = case_when(name == "A_auxotroph" | name == "A_assimilator" ~ "A",
+                           name == "B_auxotroph" | name == "B_assimilator" ~ "B")) %>%
+  mutate(type = case_when(name == "A_auxotroph" | name == "B_auxotroph" ~ "auxotroph",
+                           name == "A_assimilator" | name == "B_assimilator" ~ "assimilator")) %>%
+  dplyr::select(-name) %>%
+  pivot_wider(names_from = score, values_from = value) %>% 
+  ggplot(aes(x = A, y = B, shape = type, color = indicator.group, label = ind.vari))+
+  geom_hline(yintercept = 0.5)+
+  geom_vline(xintercept = 0.5)+
+  geom_point(size = 3)+
+  geom_line(aes(group=ind.vari))+
+  scale_color_manual(values = c('#2F397A','#415521','#A88205'))+
+  p.theme+
+  xlab('A score -> Specificity')+
+  ylab('B score -> Fidelity') +
+  geom_text_repel(color = "black", size = 2, box.padding = 0.5, min.segment.length = 0) +
+  geom_rect(aes(xmin = .47, xmax = .53, ymin = .82, ymax = 1.005),
+                 fill = "white", alpha = 0, color = "black" )
+ggsave(plot = last_plot(), file = "/Users/michelle/Documents/DOSTraits/2025Results/fig4Varations/fig4_2a.pdf", unit = "in", height = 11, width = 11) 
+
+temp_indicatorgroup <- rbind(tmpA,tmpB) %>%
+  pivot_wider(names_from  = score, values_from = value) %>%
+  mutate(score = sqrt(A*B)) %>%
+  pivot_wider(names_from = name, values_from = c(A,B,score)) %>%
+  mutate(score_diff = (score_assimilator - score_auxotroph)) %>%
+  mutate(indicator.group = case_when(score_diff < -0.05 ~ "auxotroph", score_diff > 0.05 ~ "assimilator", TRUE ~ "common")) %>%
+  dplyr::select(ind.vari, A_auxotroph,B_auxotroph,A_assimilator,B_assimilator,indicator.group) %>% 
+  pivot_longer(cols = 2:5) %>%
+  mutate(score = case_when(name == "A_auxotroph" | name == "A_assimilator" ~ "A",
+                           name == "B_auxotroph" | name == "B_assimilator" ~ "B")) %>%
+  mutate(type = case_when(name == "A_auxotroph" | name == "B_auxotroph" ~ "auxotroph",
+                           name == "A_assimilator" | name == "B_assimilator" ~ "assimilator")) %>%
+  dplyr::select(-name) %>%
+  pivot_wider(names_from = score, values_from = value)
+
+rbind(tmpA,tmpB) %>%
+  pivot_wider(names_from  = score, values_from = value) %>%
+  mutate(score = sqrt(A*B)) %>%
+  pivot_wider(names_from = name, values_from = c(A,B,score)) %>%
+  mutate(score_diff = (score_assimilator - score_auxotroph)) %>%
+  mutate(indicator.group = case_when(score_diff < -0.05 ~ "auxotroph", score_diff > 0.05 ~ "assimilator", TRUE ~ "common")) %>%
+  dplyr::select(ind.vari, A_auxotroph,B_auxotroph,A_assimilator,B_assimilator,indicator.group) %>% 
+  pivot_longer(cols = 2:5) %>%
+  mutate(score = case_when(name == "A_auxotroph" | name == "A_assimilator" ~ "A",
+                           name == "B_auxotroph" | name == "B_assimilator" ~ "B")) %>%
+  mutate(type = case_when(name == "A_auxotroph" | name == "B_auxotroph" ~ "auxotroph",
+                           name == "A_assimilator" | name == "B_assimilator" ~ "assimilator")) %>%
+  dplyr::select(-name) %>%
+  pivot_wider(names_from = score, values_from = value) %>% 
+  ggplot(aes(x = A, y = B, shape = type, color = indicator.group, label = ind.vari)) +
+  geom_hline(yintercept = 0.5)+
+  geom_vline(xintercept = 0.5)+
+  geom_point(size = 2)+
+  geom_line(aes(group=ind.vari))+
+  scale_color_manual(values = c('#2F397A','#415521','#A88205'))+
+  p.theme+
+  xlab('A score -> Specificity')+
+  ylab('B score -> Fidelity')+
+  geom_text_repel(color = "black", size = 2, box.padding = 0.5, min.segment.length = 0) +
+  xlim(.475,.525)+ylim(.825,1)
+ggsave(plot = last_plot(), file = "/Users/michelle/Documents/DOSTraits/2025Results/fig4Varations/fig4_2b.pdf", unit = "in", height = 5, width = 4) 
+
+tmpAB <- rbind(tmpA,tmpB) %>%
+  pivot_wider(names_from  = score, values_from = value) %>%
+  mutate(score = sqrt(A*B)) %>%
+  pivot_wider(names_from = name, values_from = c(A,B,score)) %>%
+  mutate(score_diff = (score_assimilator - score_auxotroph)) %>%
+  arrange(score_diff) %>% print(n=42)
+tmpAB <- gather(tmpAB[,c(1,6,7)], key = key, value = value, score_assimilator:score_auxotroph)
+write.csv(tmpAB, "/Users/michelle/Documents/DOSTraits/2025Results/IndicatorValues.csv",quote = F, col.names = T)
+write.csv(temp_indicatorgroup, "/Users/michelle/Documents/DOSTraits/2025Results/IndicatorGroups.csv",quote = F, col.names = T)
+
+```
+
+# heatmap with correlations (rather than Jaccard distances)
+```{r}
+# p_pearson <-Heatmap(abund.sub.min, 
+#          clustering_method_rows = 'complete', clustering_method_columns = 'complete',
+#          clustering_distance_rows = 'pearson', clustering_distance_columns = 'pearson',
+#          #row_split = 5, column_split = 5,
+#          col = rev(viridis(50, option = "magma")),
+#          column_names_rot = 45,
+#          column_names_gp = gpar(fontsize = 10)
+#          #rect_gp = gpar(col = "grey", lwd = 1)
+#        )
+p_spearman <-Heatmap(abund.sub.min, 
+         clustering_method_rows = 'complete', clustering_method_columns = 'complete',
+         clustering_distance_rows = 'spearman', clustering_distance_columns = 'spearman',
+         #row_split = 5, column_split = 5,
+         col = rev(viridis(50, option = "magma")),
+         column_names_rot = 45,
+         column_names_gp = gpar(fontsize = 10)
+         #rect_gp = gpar(col = "grey", lwd = 1)
+         )
+```
+
+# how many groups should we be using?
+```{r}
+#function will calculate for you
+scree <- function(hclust.obj, max.size = 12) {
+temp <- with(hclust.obj, cbind(height, merge))
+colnames(temp) <- c("Height", "JoinsThis", "WithThis")
+plot(x = max.size:1,
+     y = temp[(nrow(temp)-( max.size -1)):nrow(temp), 1],
+     xlab = "Number of groups", ylab = "Height",
+     main = hclust.obj $call, type = "b")
+tail(temp, max.size)
+}
+
+#input the correlation matrix as
+dist.cor <- as.dist(1 - cor(t(abund.sub.min), method = 'spearman'))
+clust.rows <- hclust(dist.cor)
+
+#deviation of distances within and across groups (should decrease when distances are maximized)
+scree(clust.rows, max.size = 20)
+
+#dunn index (should increase when distances are maximized)
+k_seq <- seq(2, 20)
+k_dunn <- sapply(k_seq, function(x) dunn(distance = dist.cor, cutree(clust.rows, k = x)))
+plot(k_seq,k_dunn)
+
+```
+
+Looking at how cluster size impacts grouping of auxotroph groups
+```{r}
+# get your distance matrix and cluster object as calculated by correlations
+dist.cor <- as.dist(1 - cor(t(abund.sub.min), method = 'spearman'))
+clust.rows <- hclust(dist.cor)
+
+group.result <- data.frame()
+for(i in 1:14){
+# cluster dendrogram into k groups, will need to be a factor for indicator species analysis input
+cut.out <- as.factor(cutree(clust.rows, k = 4+i))
+groups.out <-
+  data.frame(group.no = cut.out, df.sub[,c('taxa_elm','Lifestyle')]) %>%
+  mutate(group.no =paste0("s.",group.no)) %>%
+  group_by(group.no,Lifestyle,taxa_elm) %>%
+  summarise(n = n()) %>%
+  pivot_wider(names_from = Lifestyle, values_from = n) %>%
+  mutate(assimilator = case_when(is.na(assimilator) ~ 0, TRUE ~ assimilator),
+         auxotroph = case_when(is.na(auxotroph) ~ 0, TRUE ~ auxotroph)) %>%
+  mutate(tot = assimilator+auxotroph) %>%
+  group_by(group.no) %>%
+  mutate(group_tot = sum(tot,na.rm=T)) %>%
+  mutate(group.aux = sum(auxotroph,na.rm=T)/group_tot) %>%
+  arrange(desc(group.aux), group.no, desc(auxotroph)) 
+
+groups.out.filt <- groups.out %>% group_by(group.no) %>% slice(1)
+tmp <- data.frame(k = 4+i, group.aux = groups.out.filt$group.aux, group.tot = groups.out.filt$group_tot)
+group.result <- rbind(group.result,tmp)
+}
+group.result %>% ggplot(aes(x = k, group = k, y = group.aux))+geom_boxplot()+geom_point()
+group.result %>% ggplot(aes(x = k, group = k, y = group.tot))+geom_boxplot()+geom_point()
+```
+
+Cluster with your chosen k value. Will also show you resulting grouping numbers
+```{r}
+
+# get your distance matrix and cluster object as calculated by correlations
+dist.cor <- as.dist(1 - cor(t(abund.sub.min), method = 'spearman'))
+clust.rows <- hclust(dist.cor)
+# cluster dendrogram into k groups, will need to be a factor for indicator species analysis input
+cut.out <- as.factor(cutree(clust.rows, k = 8))
+
+data.frame(group.no = cut.out, df.sub[,c('taxa_elm','Lifestyle')]) %>%
+  mutate(group.no =paste0("s.",group.no)) %>%
+  mutate(value = 1) %>%
+  ggplot(aes(x = value, y = group.no, fill = taxa_elm))+
+  geom_bar(stat = "identity", position = "fill",size = 0.05)+
+  scale_fill_manual(values = tcols)+
+  xlab('% taxonomic composition')+
+  p.theme_xangle
+
+data.frame(group.no = cut.out, df.sub[,c('taxa_elm','Lifestyle')]) %>%
+  mutate(group.no =paste0("s.",group.no)) %>%
+  mutate(value = 1) %>%
+  group_by(group.no) %>%
+  mutate(n = n())%>% 
+  group_by(group.no,Lifestyle) %>%
+  summarise(n = n()) %>%
+  pivot_wider(names_from = Lifestyle, values_from = n) %>%
+  mutate(tot = assimilator+auxotroph) %>%
+  mutate(per.aux = auxotroph/tot)
+  
+```
+
+# indicator species analysis of the clusters from dendrogram.
+Look here for a nice explanation of ISA https://uw.pressbooks.pub/appliedmultivariatestatistics/chapter/isa/
+```{r}
+
+## Trying an extra step that splits groups based on auxotroph or assimialator
+cut.out.extra <-
+  data.frame(group.no = cut.out, df.sub[,c('taxa_elm','Lifestyle')]) %>%
+  mutate(group.no =paste0("s.",group.no)) %>%
+  mutate(group.no.life = paste0(group.no,"_",Lifestyle)) %>%
+  pull(group.no.life)
+  
+  
+ind <- multipatt(as.data.frame(abund.sub.min), cut.out, func = "IndVal.g", permutations = 1, duleg = TRUE)
+# the duleg = FALSE is an abbreviation for a paper that describes the combination calculations. Note here we could just get one indicator assigned to one group, but the scores are overall higher when we do the combination groups. Basically the duleg = TRUE forces a single assignment, in duleg = FALSE if the score is higher for a single group you still get that answer. Also the func default IndVal.g performs a correction factor for sample size, so you won't get exactly the value for A you would expect if manually collecting.
+#summary(ind)
+
+```
+
+# Plotting outputs
+```{r}
+#pathway names
+icols <- c("#a24758","#e38288","#d64157","#d44f2a","#a5562e","#e18c54","#dda12d","#88672e","#cfaf67","#a6882c","#adb92f","#8c9152","#738122","#576321","#95b254","#75c046","#95bb7b","#427d31","#449b3b","#40c85d","#52c485","#337b53","#56b18d","#288f88","#48cbcd","#61a2da","#5b70b5","#626cd4","#9657ca","#c690d1","#d260c4","#974f89","#d5488e")
+names(icols) <- colnames(abund.sub.min)
+#taxa colors
+tcols <- c("#d3004b","#8b373f","#ff4f60","#ac6863","#b80020","#fdb5a0","#cb6300","#e7c087","#f2b707","#cbcd29","#475907","#8ab200","#95d86c","#008014","#44c442","#01e1a1","#00956e","#009083","#0085e8","#0270f9","#aa79ff","#7431a2","#eb8dff","#ffa8f2","#ff7be8","#ff8bd9","#c30099","#7e486b","#962166","#ffa1c0")
+names(tcols) <- sort(unique(df$taxa_elm))
+
+#results from indicator analysis into dataframe for plotting
+ind.out <- ind$sign %>% mutate(ind.vari = rownames(ind$sign)) %>% filter(p.value < 0.05) 
+tmp <- ind.out %>% dplyr::select(starts_with("s."))
+ind.out <- ind.out %>% mutate(group.degree = rowSums(tmp))
+#add the values for A and B which might be useful
+for(i in 1:dim(ind.out)[1]){ind.out$A[i] = ind$A[ind.out$ind.vari[i],ind.out$index[i]]; ind.out$B[i] = ind$B[ind.out$ind.vari[i],ind.out$index[i]]}
+all(ind.out$stat == sqrt(ind.out$A*ind.out$B))
+head(ind.out)
+```
+
+
+
+# More useful plots
+```{r}
+# filtering the taxa colors so we only have what we need in the legend
+tcols <- tcols[which(names(tcols) %in% unique(df.sub$taxa_elm))]
+# pathway oxidation states
+ox.cols <- c('#67a9cf','#67a9cf','#ef8a62','#ef8a62','#ef8a62',
+             '#ef8a62','#ef8a62','#ef8a62','#ef8a62','#ef8a62',
+             '#ef8a62','#ef8a62','#ef8a62','#67a9cf','#67a9cf',
+             '#67a9cf','#67a9cf','#ef8a62','#ef8a62','#ef8a62',
+             '#ef8a62','#ef8a62','#ef8a62','#ef8a62','#67a9cf')
+names(ox.cols) <- c("Methionine.Transport","Methionine...N.Acyl.L.homoserine.lactone","Glutathione.Synthesis","Glutathione.Transporter",
+                    "DHPS.Transporter","DHPS.Degradation","Taurine.Transport","Taurine.Degradation","Hypotaurine.Degradation",
+                    "Isethionate.Transport","N.acetyltaurine.Transport","Choline.O.sulfate.Degradation","Choline.O.sulfate.Transport",
+                    "Biotin.Transport","Biotin.Degradation","Methanethiol.Synthesis","X3.Mercaptopyruvate.Degradation",
+                    "Glutathione.disulfide.degradation.and.synthesis","Dimethylsulfoxide.Degradation","Dimethylsulfone.Degradation",
+                    "Methanesulfonate.Degradation","Sulfolactate.degradation",
+                    "Sulfopyruvate.Degradation","Sulfoacetaldehyde.Degradation","S.adenosyl.L.homocysteine.degradation")
+
+# get levels for arranging the pathways based on how many groups a pathway is an indicator for
+path.levels <- ind.out %>% arrange(group.degree) %>% pull(ind.vari)
+idx = grep("s\\.",colnames(ind.out))
+mat.ind <- as.matrix(ind.out[,idx])
+dist.ind <- as.dist(1-cor(t(mat.ind), method = 'spearman'))
+clust.ind <- hclust(dist.ind)
+plot(clust.ind, hang = -1)
+path.levels <- rownames(mat.ind)[clust.ind$order]
+
+# get levels for arranging groups via clustering corr
+lifestyle.levels <- colnames(ind.out)[grep("s\\.",colnames(ind.out))]
+ idx = grep("s\\.",colnames(ind.out))
+# mat.ind <- as.matrix(ind.out[,idx])
+# if(any(colSums(mat.ind) == 0)){idx = which(colSums(mat.ind) == 0); mat.ind <- mat.ind[,-idx]}
+# dist.ind <- as.dist(1-cor(mat.ind, method = 'spearman'))
+# clust.ind <- hclust(dist.ind)
+# #clust.ind$order <- rev(c(12,11,5,9,7,4,6,1,3,8,10,2))
+# lifestyle.levels <- colnames(mat.ind)[clust.ind$order]
+# plot(clust.ind, hang = -1)
+
+#number of indicators per group
+deg.df <- data.frame(group.deg = rowSums(t(ind.out[,idx]))) 
+deg.df %>% 
+  mutate(group.no = rownames(deg.df)) %>% 
+  mutate(group.no = factor(group.no, levels = lifestyle.levels )) %>%
+  ggplot(aes(x = group.deg, y = group.no))+
+  geom_bar(stat = "identity")+
+  p.theme_xangle
+
+# looking at indicator pathways in a 1:1 setup to compare more easily
+p1 <- ind.out %>%
+  dplyr::select(starts_with("s."), ind.vari) %>%
+  pivot_longer(cols = -ind.vari) %>%
+  filter(value == 1) %>%
+  mutate(ind.vari = factor(ind.vari, levels = path.levels)) %>%
+  mutate(name = factor(name, levels = lifestyle.levels )) %>%
+  ggplot(aes(x = ind.vari, y = name, color = ind.vari))+
+  geom_point(size = 3)+
+  geom_line(aes(group = ind.vari))+
+  scale_color_manual(values = ox.cols)+
+  p.theme_xangle+
+  theme(legend.position = "none", axis.title.x = element_blank())
+
+p2 <- ind.out %>%
+  mutate(ind.vari = factor(ind.vari, levels = path.levels)) %>%
+  ggplot(aes(x = ind.vari, y = group.degree, fill = ind.vari))+
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = icols)+
+  p.theme_xangle+
+  theme(legend.position = "none", 
+        axis.text.x=element_blank(), #remove x axis labels
+        axis.ticks.x=element_blank())
+
+p3 <- ind.out %>%
+  mutate(ind.vari = factor(ind.vari, levels = path.levels)) %>%
+  ggplot(aes(x = ind.vari, y = stat, color = ind.vari))+
+  geom_point(size =3)+
+  scale_color_manual(values = icols)+
+  p.theme_xangle+
+  theme(legend.position = "none", 
+        axis.text.x=element_blank(), #remove x axis labels
+        axis.ticks.x=element_blank(),
+        axis.title.x = element_blank())
+
+
+grid.arrange(p3, p1,ncol=1, heights = c(0.25, 0.5))
+
+# taxonomy of the cluster groups
+a<-data.frame(group.no = cut.out, df.sub[,c('taxa_elm','Lifestyle')]) %>%
+  mutate(group.no =paste0("s.",group.no)) %>%
+  mutate(value = 1) %>%
+  mutate(group.no = factor(group.no, levels = lifestyle.levels)) %>%
+  ggplot(aes(x = value, y = group.no, fill = taxa_elm))+
+  geom_bar(stat = "identity", position = "fill",size = 0.05)+
+  scale_fill_manual(values = tcols)+
+  xlab('% taxonomic composition')+
+  p.theme_xangle
+
+# lifestyles of the cluster groups
+b<-data.frame(group.no = cut.out, df.sub[,c('taxa_elm','Lifestyle')]) %>%
+  mutate(group.no =paste0("s.",group.no)) %>%
+  group_by(group.no,Lifestyle) %>%
+  summarise(n = n()) %>%
+  pivot_wider(names_from = Lifestyle, values_from = n) %>%
+  mutate(tot = assimilator+auxotroph) %>%
+  mutate(per.aux = auxotroph/tot) %>%
+  #mutate(group.no = factor(group.no, levels = lifestyle.levels)) %>%
+  ggplot(aes(x = per.aux, y = group.no))+
+  geom_point(size = 3)+
+  p.theme_xangle+
+  xlab(c(0,1))+
+  xlab('% Auxotrophy of group')
+
+# richness of the cluster groups
+c<-data.frame(group.no = cut.out, df.sub[,c('taxa_elm','Lifestyle')]) %>%
+  mutate(group.no =paste0("s.",group.no)) %>%
+  group_by(group.no) %>%
+  summarise(n = length(unique(taxa_elm))) %>% 
+  #mutate(group.no = factor(group.no, levels = lifestyle.levels)) %>%
+  ggplot(aes(x = n, y = group.no))+
+  geom_point(size = 3)+
+  p.theme_xangle+
+  xlab('Group Richness')
+
+# boxplot of the cluster completeness
+med = median(df.sub$Mean.Completeness)
+mu = mean(df$Mean.Completeness)
+d<-data.frame(group.no = cut.out, df.sub[,c('taxa_elm','Lifestyle','Mean.Completeness')]) %>%
+  mutate(group.no =paste0("s.",group.no)) %>% 
+  #mutate(group.no = factor(group.no, levels = lifestyle.levels)) %>%
+  ggplot(aes(x = Mean.Completeness, y = group.no))+
+  geom_vline(xintercept = med, linetype = "dashed")+
+  geom_boxplot()+
+  p.theme_xangle+
+  xlab('Group Mean Genome Completeness')
+
+grid.arrange(a+theme(legend.position = "none"),b,c,d, ncol = 4, widths=c(1,0.5,0.5,0.75))
+a
+
+idx=NA
+ind_scores <- ind$sign
+ind_ab <- data.frame(A = NA, B = NA, group = NA)
+for(i in 1:dim(ind_scores)[1]){
+  idx <- which(ind_scores[i,] == 1)
+  
+  ind_ab[i,'A'] <- ind$A[i,idx]
+  ind_ab[i,'B'] <- ind$B[i,idx]
+  ind_ab[i,'group'] <- colnames(ind_scores)[idx]
+}
+rownames(ind_ab) <- rownames(ind$A)
+ind_ab$ind.vari <- rownames(ind_ab)
+ind_ab %>%
+  ggplot(aes(x = A, y = B))+
+  #annotate("rect", xmin = 0.25, xmax = 0.7, ymin = 0.25, ymax = 1,alpha = .1,fill = "blue")+
+  geom_hline(yintercept = 0.25)+
+  geom_vline(xintercept = 0.25)+
+  geom_point(aes(color = group), size = 4)+
+  scale_color_manual(values = rev(c('#66c2a5','#fc8d62','#8da0cb','#e78ac3','#a6d854','#ffd92f','#e5c494','#b3b3b3')))+
+  geom_label_repel(aes(label = ind.vari), box.padding = 1, size = 3)+
+  p.theme
+
+ind_scores_a <- data.frame(ind$A) %>% mutate(ind.vari.name = rownames(ind$A)) %>% pivot_longer(1:dim(ind$A)[2]) %>% rename(A_value = value)
+ind_scores_b <- data.frame(ind$B) %>% mutate(ind.vari.name = rownames(ind$B)) %>% pivot_longer(1:dim(ind$B)[2]) %>% rename(B_value = value)
+merge(ind_scores_a,ind_scores_b, by = c('ind.vari.name','name')) %>%
+  ggplot(aes(x = A_value, y = B_value, color = name))+
+  geom_point()+
+  facet_wrap(~ind.vari.name)
+```
+
+
+```{r}
+
+path.names <- colnames(abund.sub.min)
+
+for(i in 1:length(path.names)){
+
+p <- 
+  data.frame(group.no = cut.out, df.sub) %>%
+  mutate(group.no =paste0("s.",group.no)) %>%
+  dplyr::select(1,3,4,5,path.names[i]) %>%
+  rename(path = 5) %>%
+  group_by(group.no, taxa_elm, path) %>% 
+  summarise(n = n()) %>%
+  group_by(group.no) %>%
+  mutate(tot = sum(n)) %>%
+  mutate(path = factor(path, levels = c(0,1))) %>%
+  ggplot(aes(x = path, y = n, fill = taxa_elm))+
+  geom_bar(stat = "identity", position = "stack")+
+  facet_wrap(~group.no)+
+  scale_fill_manual(values = tcols)+
+  xlab('')+
+  ggtitle(path.names[i])
+
+print(p)
+  
+}
+
+```
+
+
+
+
+
+
+
+
+
+  
+```{r}
+df.sub %>%
+  dplyr::select(2,3,4,'Sulfolactate.degradation') %>% 
+  group_by(taxa_elm,Lifestyle,Sulfolactate.degradation) %>%
+  summarise(n = n()) %>% #group_by(Lifestyle,Sulfolactate.degradation) %>% summarise(tot = sum(n))
+  mutate(Sulfolactate.degradation = as.character(Sulfolactate.degradation)) %>% 
+  ggplot(aes(x = Sulfolactate.degradation, y = n, fill = taxa_elm))+
+  geom_bar(stat = "identity", position = "fill")+
+  scale_fill_manual(values = tcols)+
+  facet_wrap(~Lifestyle, scales = "free_y")+
+  p.theme+xlab("")+
+  ggtitle('Sulfolactate Degradation')
+
+df.sub %>%
+  dplyr::select(2,3,4,'Biotin.Transport') %>% 
+  group_by(taxa_elm,Lifestyle,Biotin.Transport) %>% 
+  summarise(n = n()) %>% group_by(Lifestyle,Biotin.Transport) %>% summarise(tot = sum(n))
+  mutate(Biotin.Transport = as.character(Biotin.Transport)) %>% 
+  ggplot(aes(x = Biotin.Transport, y = n, fill = taxa_elm))+
+  geom_bar(stat = "identity", position = "fill")+
+  scale_fill_manual(values = tcols)+
+  facet_wrap(~Lifestyle, scales = "free_y")+
+  p.theme+xlab("")+
+  ggtitle('Biotin.Transport')
+```
+
+  
+  
+```{r}  
+data.frame(group.no = cut.out, df.sub) %>%
+  mutate(group.no =paste0("s.",group.no)) %>%
+  dplyr::select(1,3,4,5,'Sulfolactate.degradation') %>%
+  group_by(group.no, taxa_elm, Sulfolactate.degradation) %>% 
+  summarise(sums = n()) %>%
+  mutate(Sulfolactate.degradation = factor(Sulfolactate.degradation, levels = c(1,0))) %>%
+  ggplot(aes(x = taxa_elm, y = sums, fill = Sulfolactate.degradation))+
+  geom_bar(stat = "identity", position = "stack")+
+  facet_wrap(~group.no, scales = "free_y")+
+  p.theme_xangle+
+  ggtitle('Sulfolactate')
+
+data.frame(group.no = cut.out, df.sub) %>%
+  mutate(group.no =paste0("s.",group.no)) %>%
+  dplyr::select(1,3,4,5,'Sulfopyruvate.Degradation') %>%
+  group_by(group.no, taxa_elm, Sulfopyruvate.Degradation) %>% 
+  summarise(sums = n()) %>%
+  mutate(Sulfopyruvate.Degradation = factor(Sulfopyruvate.Degradation, levels = c(1,0))) %>%
+  ggplot(aes(x = taxa_elm, y = sums, fill = Sulfopyruvate.Degradation))+
+  geom_bar(stat = "identity", position = "stack")+
+  facet_wrap(~group.no, scales = "free_y")+
+  p.theme_xangle+
+  ggtitle('Sulfopyruvate')
+
+data.frame(group.no = cut.out, df.sub) %>%
+  mutate(group.no =paste0("s.",group.no)) %>%
+  dplyr::select(1,3,4,5,'Methionine.Transport') %>%
+  group_by(group.no, taxa_elm, Methionine.Transport) %>% 
+  summarise(sums = n()) %>%
+  mutate(Methionine.Transport = factor(Methionine.Transport, levels = c(1,0))) %>%
+  ggplot(aes(x = taxa_elm, y = sums, fill = Methionine.Transport))+
+  geom_bar(stat = "identity", position = "stack")+
+  facet_wrap(~group.no, scales = "free_y")+
+  p.theme_xangle+
+  ggtitle('Methionine.Transport')
+
+data.frame(group.no = cut.out, df.sub) %>%
+  mutate(group.no =paste0("s.",group.no)) %>%
+  dplyr::select(1,3,4,5,'Methionine.Transport') %>%
+  group_by(group.no, taxa_elm, Methionine.Transport) %>% 
+  summarise(sums = n()) %>%
+  mutate(Methionine.Transport = factor(Methionine.Transport, levels = c(1,0))) %>%
+  ggplot(aes(x = taxa_elm, y = sums, fill = Methionine.Transport))+
+  geom_bar(stat = "identity", position = "stack")+
+  facet_wrap(~group.no, scales = "free_y")+
+  p.theme_xangle+
+  ggtitle('Methionine.Transport')
+
+```
+
+```{r}
+taxa %>%
+  ggplot(aes(y = Lifestyle, x = X16S.rRNA))+
+  geom_boxplot()
+taxa %>%
+  ggplot(aes(y = Lifestyle, x = Genome.size))+
+  geom_boxplot()
+
+taxa %>%
+  filter(taxa_elm != "Alpha-Pelagibacter") %>%
+  ggplot(aes(y = Lifestyle, x = GC.Content))+
+  geom_boxplot()
+
+taxa %>%
+  group_by(Lifestyle) %>%
+  #summarise(n = n(), mu = mean(GC.Content), sdev = sd(GC.Content))
+  #summarise(n = n(), mu = mean(Genome.size)/1e6, sdev = sd(Genome.size)/1e6)
+  summarise(n = n(), mu = mean(Coding.density), sdev = sd(Coding.density))
+
+
+shapiro.test(taxa$GC.Content[which(taxa$Lifestyle == "auxotroph")])
+shapiro.test(taxa$GC.Content[which(taxa$Lifestyle == "assimilator")][1:5000])
+
+wilcox.test(taxa$Coding.density[which(taxa$Lifestyle == "assimilator")],
+            taxa$Coding.density[which(taxa$Lifestyle == "auxotroph" & taxa$taxa_elm != "Alpha-Pelagibacter")],
+            alternative = 'two.sided')
+
+taxa %>%
+  ggplot(aes(y = Lifestyle, x = Coding.density))+
+  geom_boxplot()
+
+t.levels <- 
+  taxa %>%
+  group_by(Lifestyle,taxa_elm) %>%
+  summarise(n = n()) %>%
+  pivot_wider(names_from = Lifestyle, values_from = n) %>%
+  mutate(assimilator = case_when(is.na(assimilator) ~ 0, TRUE ~ assimilator)) %>%
+  mutate(incomplete = case_when(is.na(incomplete) ~ 0, TRUE ~ incomplete)) %>%
+  mutate(auxotroph = case_when(is.na(auxotroph) ~ 0, TRUE ~ auxotroph)) %>%
+  mutate(tot = assimilator+auxotroph+incomplete) %>%
+  mutate(per = auxotroph/tot) %>% 
+  arrange(per) %>%
+  pull(taxa_elm)
+
+taxa %>%
+  group_by(Lifestyle,taxa_elm) %>%
+  summarise(n = n()) %>%
+  mutate(Lifestyle = factor(Lifestyle, levels  = (c('assimilator','incomplete','auxotroph')))) %>%
+  mutate(taxa_elm = factor(taxa_elm, levels = t.levels)) %>%
+  ggplot(aes(y = taxa_elm, x = n, fill = Lifestyle))+
+  geom_bar(stat = 'identity', position = 'fill', color = 'black')+
+  scale_fill_manual(values = (c('white','grey','black')))+
+  p.theme+
+  ylab('')+xlab('% of group members')+
+  theme(legend.position = 'top')+
+  scale_x_continuous(expand = c(0.001,0.001))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+# does cluster size reflect genome completeness?
+data.frame(group.no = cut.out, df.sub[,c('taxa_elm','Lifestyle','Mean.Completeness')]) %>%
+  mutate(group.no =paste0("s.",group.no)) %>%
+  mutate(tot.mean = mean(Mean.Completeness), tot.medi = median(Mean.Completeness)) %>%
+  group_by(group.no) %>%
+  mutate(group.tots = n()) %>%
+  ggplot(aes(x = group.no, y = Mean.Completeness, fill = group.tots))+
+  geom_hline(yintercept = 93.7)+
+  geom_boxplot()+
+  scale_fill_viridis()+
+  p.theme
+data.frame(group.no = cut.out, df.sub[,c('taxa_elm','Lifestyle','Mean.Completeness')]) %>%
+  mutate(group.no =paste0("s.",group.no)) %>%
+  mutate(tot.mean = mean(Mean.Completeness), tot.medi = median(Mean.Completeness)) %>%
+  group_by(group.no) %>%
+  mutate(group.tots = n()) %>%
+  ggplot(aes(x = as.factor(group.tots), group = group.tots, y = Mean.Completeness))+
+  geom_hline(aes(yintercept = tot.mean))+
+  geom_hline(aes(yintercept = tot.medi))+
+  geom_boxplot()+
+  p.theme+
+  xlab('No. of genomes in each cluster')
+```
+
+
+# Compare the A (Specificity ~ relative abundance) and B (Fidelity ~ relative frequency) scores
+```{r}
+A=seq(0,1,0.001)
+names(A) = paste0("A",1:1001)
+B=seq(0,1,0.001)
+names(B) = paste0("B",1:1001)
+pairs = sqrt(outer(A,B))
+rownames(pairs) = names(A)
+colnames(pairs) = names(B)
+tmp <- 
+  data.frame(pairs) %>%
+  mutate(A = rownames(pairs)) %>%
+  pivot_longer(1:1001, names_to = "B") %>%
+  rename(A_name = A, B_name = B)
+tmp$A_value = A[tmp$A_name]
+tmp$B_value = B[tmp$B_name]
+
+tmp %>%
+  ggplot()+
+  geom_tile(data = tmp, aes(A_value, y = B_value, fill = value))+scale_fill_viridis(alpha = 0.5, option = "magma")+
+  geom_hline(yintercept = 0.5)+geom_vline(xintercept = 0.5)+geom_abline(slope = 1, intercept = 0)+
+  geom_point(data = ind.out, aes(x = A, y =B, color = ind.vari, size = group.degree))+scale_color_manual(values = icols)+
+  p.theme#+xlim(c(0.5,1))+ylim(c(0.5,1))
+```
+
+# Upset plot
+```{r}
+# name of columns for the upset plot
+intersects <- colnames(ind.out)[grep("s\\.",colnames(ind.out))]
+#upset plot, with annotation of indicator scores
+upset(ind.out, intersects, sort_intersections_by='degree', annotations = list('Indicator score'=list(aes=aes(x=intersection, y=stat, color = ind.vari), geom=geom_point(size = 2))))
+```
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+# Not using this anymore...
+
+## Using everything
+
+### PCA
+
+```{r PCA of everything, eval = FALSE}
+### PCA
+pca.out <- rda(abund)
+ordiplot(pca.out, main = 'PCA of abundance table' )
+### transformed PCA
+abund.tr <- decostand(abund, method = 'hellinger')
+pca.out <- rda(abund.tr, scale = F)
+ordiplot(pca.out, main = 'PCA of Hellinger transformed abundance table')
+#summary(pca.out)
+```
+
+#### ggplot version - maybe some clustering?
+```{r}
+score.site <- data.frame(scores(pca.out)$sites, df[,c('taxa_elm','Lifestyle')])
+score.specie <- data.frame(scores(pca.out)$species, pathway = colnames(abund))
+ggplot(score.site, aes(x = PC1, y = PC2, color =  Lifestyle))+
+  geom_point(size = 3)
+```
+
+#### but with species scores the scale is thrown off
+```{r}
+score.site %>%
+  #filter(Lifestyle != "incomplete") %>% 
+  ggplot()+
+  geom_point(aes(x = PC1, y = PC2, color =  Lifestyle), size = 3)+
+  geom_segment(data = score.specie, aes(x = 0, y = 0, xend = PC1, yend = PC2), arrow = arrow(length = unit(0.15, "cm")))+
+  geom_text_repel(data = score.specie, aes(x = PC1, y = PC2, label = pathway))
+
+```
+
+
+### PCoA of Bray Curtis 
+```{r}
+dist.bray <- vegdist(abund.sub, method = "bray", binary = F)
+pcoa.out <- cmdscale(dist.bray, eig = T, add = T)
+pcoa.df <- data.frame(as.data.frame(scores(pcoa.out)), df.sub[,c('taxa_elm','Lifestyle')]) %>% rename(pcoa1 = 1, pcoa2 = 2)
+per_explain = round(100*(pcoa.out$eig/sum(pcoa.out$eig)), digits = 2)
+pcoa.df %>%
+  ggplot(aes(x = pcoa1, y = pcoa2, color = Lifestyle))+
+  geom_point()+
+  scale_color_manual(values = life.colors)+
+  p.theme+
+  labs(x = paste0("PCo 1 (", per_explain[1] , "%)"),
+       y = paste0("PCo 2 (", per_explain[2] , "%)"))+
+  stat_ellipse()
+
+anova(betadisper(dist.bray, pcoa.df$Lifestyle))
+adonis2(dist.bray ~ pcoa.df$Lifestyle*pcoa.df$taxa_elm, permutations = 10)
+```
+
+### PCoA of Jaccard
+```{r}
+dist.jacc <- vegdist(abund.sub, method = "jaccard", binary = T)
+pcoa.out <- cmdscale(dist.jacc, eig = T, add = T)
+pcoa.df <- data.frame(as.data.frame(scores(pcoa.out)), df.sub[,c('taxa_elm','Lifestyle')]) %>% rename(pcoa1 = 1, pcoa2 = 2)
+per_explain = round(100*(pcoa.out$eig/sum(pcoa.out$eig)), digits = 2)
+pcoa.df %>%
+  ggplot(aes(x = pcoa1, y = pcoa2, color = Lifestyle))+
+  geom_point()+
+  scale_color_manual(values = life.colors)+
+  p.theme+
+  labs(x = paste0("PCo 1 (", per_explain[1] , "%)"),
+       y = paste0("PCo 2 (", per_explain[2] , "%)"))+
+  stat_ellipse()
+
+anova(betadisper(dist.jacc, pcoa.df$Lifestyle))
+adonis2(dist.jacc ~ pcoa.df$Lifestyle*pcoa.df$taxa_elm, permutations = 10)
+```
+
+## Playing around with clustering and dendrograms
+```{r}
+abund.test <- abund[1:20,]
+x = which(rowSums(abund.test) == 0)
+y = which(colSums(abund.test) == 0)
+abund.test <- abund.test[,-y]
+
+dist.jacc <- vegdist(abund.test, method = "jaccard", binary = T)
+clust.species <- hclust(dist.jacc, method = "complete")
+clust.dendo <- as.dendrogram(clust.species)
+plot(clust.dendo)
+species.order <- paste0("strain",order.dendrogram(clust.dendo))
+
+dist.jacc <- vegdist(t(abund.test), method = "jaccard", binary = T)
+clust.path <- hclust(dist.jacc, method = "complete")
+clust.dendo <- as.dendrogram(clust.path)
+plot(clust.dendo)
+path.order <- colnames(abund.sub)[order.dendrogram(clust.dendo)]
+
+abund.test %>% 
+  as.data.frame() %>%
+  mutate(strain.name = paste0('strain',1:20)) %>%
+  pivot_longer(cols = 1:29) %>%
+  mutate(strain.name = factor(strain.name, levels = clust.order)) %>%
+  mutate(name = factor(name, levels = path.order)) %>% 
+  ggplot(aes(x = name, y = strain.name, fill = value))+
+  geom_tile()+
+  scale_fill_gradient2()+
+  p.theme_xangle+
+  theme(legend.position = "top")
+```
+
+## Heatmap using jaccard distances
+```{r}
+
+any(rowSums(abund.sub) == 0)
+any(colSums(abund.sub) == 0)
+
+dist.jacc <- vegdist(abund.sub, method = "jaccard", binary = T)
+clust.species <- hclust(dist.jacc, method = "complete")
+clust.dendo <- as.dendrogram(clust.species)
+dend.rows <- color_branches(clust.dendo, k = 2)
+species.order <- paste0("strain",order.dendrogram(clust.dendo))
+
+dist.jacc <- vegdist(t(abund.sub), method = "jaccard", binary = T)
+clust.path <- hclust(dist.jacc, method = "complete")
+clust.dendo <- as.dendrogram(clust.path)
+dend.cols <- color_branches(clust.dendo, k = 5)
+path.order <- colnames(abund.sub)[order.dendrogram(clust.dendo)]
+
+jacc_dist = function(x, y) 1 - sum(x & y)/sum(x | y)
+
+p<-Heatmap(abund.sub, 
+         clustering_method_rows = 'complete', clustering_method_columns = 'complete',
+         clustering_distance_rows = jacc_dist, clustering_distance_columns = jacc_dist,
+         #row_split = 5, column_split = 5,
+         col = rev(viridis(50, option = "magma")),
+         column_names_rot = 45,
+         column_names_gp = gpar(fontsize = 10)
+         #rect_gp = gpar(col = "grey", lwd = 1)
+         )
+r = row_order(p)
+
+```
