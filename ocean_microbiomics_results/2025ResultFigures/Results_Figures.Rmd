@@ -32,8 +32,8 @@ values6 <- c("#2F397A", "#415521", "#5A8093", "#9399bd", "#9fb6c2", "#c0d998")
 tcols <- c("#d3004b","#8b373f","#ff4f60","#ac6863","#b80020","#fdb5a0","#cb6300","#e7c087","#f2b707","#cbcd29","#475907","#8ab200","#95d86c","#008014","#44c442","#01e1a1","#00956e","#009083","#0085e8","#0270f9","#aa79ff","#7431a2","#eb8dff","#ffa8f2","#ff7be8","#ff8bd9","#c30099","#7e486b","#962166","#ffa1c0")
 names(tcols) <- sort(unique(df$taxa_elm))
 ```
-# Figure 2
-A figure that contains information about S lifestyle per taxa, with genome metadata.
+# Genomes
+Import all of our files and get the right number of genomes in these files.
 ```{r}
 si_lifestyle <- read.csv("new_filtered_SA/Sulfate Assimilationprocessed_above75genomecompletion_wlifestyle.csv")
 si_lifestyle <- si_lifestyle[,c(1,23)]
@@ -50,11 +50,15 @@ maxcompletion <- cbind(row.names(maxcompletion), maxcompletion)
 names(maxcompletion)[1] <- "Genome"
 #select the overlap to get 15969
 names_id_filtered <- names_ids[which(names_ids$Genome %in% maxcompletion$Genome),]
+nrow(names_id_filtered)
 ```
+# Figure 2
+A figure that contains information about S lifestyle per taxa, with genome metadata.
 ## Panel A, the bar plot figure, with Panel B, the genome metadata figure
 Using the files imported above:
 ```{r}
 our_genomes <- read.csv("new_filtered_SA/2024_June19_ERIN_SulfateAssimilationprocessed_above75genomecompletion.csv", row.names = 1)
+# limit to 15969 correct genomes from chunk above
 our_genomes <- our_genomes %>% filter(Genome %in% names_id_filtered$Genome)
 #check suns of auxotrophs, assimilators and incompletes
 our_genomes %>% group_by(Lifestyle) %>% summarise(n = n())
