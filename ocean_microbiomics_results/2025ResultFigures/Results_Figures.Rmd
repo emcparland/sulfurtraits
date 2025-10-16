@@ -1,0 +1,1590 @@
+---
+title: "ProcessingResults_MakingFigures"
+author: "Michelle DeMers"
+date: "2025-10-11"
+output: pdf_document
+---
+```{r setup, include=FALSE}
+setwd("/Users/michelle/Documents/DOSTraits/")
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library("seqinr")
+library(ggtree)
+library(ggtreeExtra)
+library(ggnewscale)
+library(ggstatsplot)
+library(ggridges)
+library(indicspecies)
+library(pheatmap)
+library(RColorBrewer)
+library("NatParksPalettes")
+library(nationalparkcolors)
+library(ggpubr)
+library(patchwork)
+
+# setting color palettes
+c(natparks.pals("IguazuFalls", 6))
+# the basis palette above
+# the actual colors below
+values3 <- c("#2F397A","#415521","#5A8093")
+values6 <- c("#2F397A", "#415521", "#5A8093", "#9399bd", "#9fb6c2", "#c0d998")
+tcols <- c("#d3004b","#8b373f","#ff4f60","#ac6863","#b80020","#fdb5a0","#cb6300","#e7c087","#f2b707","#cbcd29","#475907","#8ab200","#95d86c","#008014","#44c442","#01e1a1","#00956e","#009083","#0085e8","#0270f9","#aa79ff","#7431a2","#eb8dff","#ffa8f2","#ff7be8","#ff8bd9","#c30099","#7e486b","#962166","#ffa1c0")
+names(tcols) <- sort(unique(df$taxa_elm))
+```
+# Figure 2
+A figure that contains information about S lifestyle per taxa, with genome metadata.
+```{r}
+si_lifestyle <- read.csv("new_filtered_SA/Sulfate Assimilationprocessed_above75genomecompletion_wlifestyle.csv")
+si_lifestyle <- si_lifestyle[,c(1,23)]
+names(si_lifestyle)[1] <- "Genome"
+# remove genomes with no phyla (no GTDB taxonomy)
+names_ids <- read.csv("genome_summary_ELM_2.csv")
+names_ids <- names_ids[-(which(is.na(names_ids$Phyla))),]
+names_ids <- names_ids[,c(1,56)]
+names(names_ids)[1] <- "Genome"
+# remove genomes that have no hits in any pathways
+maxcompletion <- read.csv("kofam_results/summary_max_table.csv", row.names = 1)
+maxcompletion <- maxcompletion[-(which(rowSums(maxcompletion)== 0)),]
+maxcompletion <- cbind(row.names(maxcompletion), maxcompletion)
+names(maxcompletion)[1] <- "Genome"
+#select the overlap to get 15969
+names_id_filtered <- names_ids[which(names_ids$Genome %in% maxcompletion$Genome),]
+```
+## Panel A, the bar plot figure, with Panel B, the genome metadata figure
+Using the files imported above:
+```{r}
+our_genomes <- read.csv("new_filtered_SA/2024_June19_ERIN_SulfateAssimilationprocessed_above75genomecompletion.csv", row.names = 1)
+our_genomes <- our_genomes %>% filter(Genome %in% names_id_filtered$Genome)
+#check suns of auxotrophs, assimilators and incompletes
+our_genomes %>% group_by(Lifestyle) %>% summarise(n = n())
+table1 <- our_genomes %>% group_by(taxa_elm) %>% summarise(n = n())
+table2 <- our_genomes %>% filter(Lifestyle == "auxotroph") %>% group_by(taxa_elm) %>% summarise(n_aux = n())
+table1 <- merge(table1, table2,all = T)
+table1$n_aux[is.na(table1$n_aux)] <- 0
+table1$frac <- table1$n_aux/table1$n
+table3 <- our_genomes %>% group_by(taxa_elm) %>% summarise(mean = mean(Mean.Completeness))
+table1 <- merge(table1, table3,all = T)
+order1 <- table1$taxa_elm[order(table1$frac)]
+our_genomes$taxa_elm <- factor(our_genomes$taxa_elm, levels = order1)
+our_genomes$Lifestyle <- factor(
+  our_genomes$Lifestyle, levels =c("assimilator", "incomplete", "auxotroph"))
+p1 <- ggplot(our_genomes, aes(x = taxa_elm )) + geom_bar(aes(fill = Lifestyle),position = "fill") + coord_flip() + theme(legend.position = "top") +
+  scale_fill_manual(values = values3, breaks = c("assimilator", "auxotroph", "incomplete"), label = c("Assimilator","Auxotroph", "Incomplete")) + 
+  theme_light() + ylab("Proportion of Genomes")+
+  xlab("Taxonomic Group")
+table1$taxa_elm <- factor(table1$taxa_elm, order1)
+p2 <- ggplot(table1, aes(x = taxa_elm, y = n, fill = mean)) + geom_bar(stat = "identity") +
+  coord_flip() + theme_light() + ylab("Number of Genomes per Taxonomic Group") +  xlab("") +
+  scale_fill_gradient(low = "lightgrey", high = "black", name = "Mean Genome Completion", limits = c(75,100))
+p3 <- ggarrange(p1, p2, align = "hv", legend = "top", widths = c(6,4))
+ggsave(filename = "2025Results/fig2.pdf", plot = p3, width=14, height=5)
+
+order2 <- c(order1[3], order1[2], order1[1], order1[4:30])
+our_genomes$taxa_elm <- factor(our_genomes$taxa_elm, levels = order2)
+our_genomes$Lifestyle <- factor(
+  our_genomes$Lifestyle, levels =c("assimilator", "incomplete", "auxotroph"))
+p1 <- ggplot(our_genomes, aes(x = taxa_elm )) + geom_bar(aes(fill = Lifestyle),position = "fill") + coord_flip() + theme(legend.position = "top") +
+  scale_fill_manual(values = values3, breaks = c("assimilator", "auxotroph", "incomplete"), label = c("Assimilator","Auxotroph", "Incomplete")) + 
+  theme_light() + ylab("Proportion of Genomes")+
+  xlab("Taxonomic Group")
+table1$taxa_elm <- factor(table1$taxa_elm, order2)
+p2 <- ggplot(table1, aes(x = taxa_elm, y = n, fill = mean)) + geom_bar(stat = "identity") +
+  coord_flip() + theme_light() + ylab("Number of Genomes per Taxonomic Group") +  xlab("") +
+  scale_fill_gradient(low = "lightgrey", high = "black", name = "Mean Genome Completion", limits = c(75,100))
+p3 <- ggarrange(p1, p2, align = "hv", legend = "top", widths = c(6,4))
+ggsave(filename = "2025Results/Fig2Variations/fig2_differentorder.pdf", plot = p3, width=14, height=5)
+
+p2 <- ggplot(table1, aes(x = taxa_elm, y = n, fill = mean)) + geom_bar(stat = "identity") +
+  coord_flip() + theme_light() + ylab("Number of Genomes per Taxonomic Group") +  xlab("") +
+  scale_fill_viridis_c(option = "mako", direction = -1 )
+p3 <- ggarrange(p1, p2, align = "hv", legend = "top", widths = c(6,4))
+ggsave(filename = "2025Results/Fig2Variations/fig2_v3.pdf", plot = p3, width=14, height=5)
+
+p2 <- ggplot(table1, aes(x = taxa_elm, y = n, fill = mean)) + geom_bar(stat = "identity") +
+  coord_flip() + theme_light() + ylab("Number of Genomes per Taxonomic Group") +  xlab("") +
+  scale_fill_viridis_c( direction = -1 )
+p3 <- ggarrange(p1, p2, align = "hv", legend = "top", widths = c(6,4))
+ggsave(filename = "2025Results/Fig2Variations/fig2_v4.pdf", plot = p3, width=14, height=5)
+
+p2 <- ggplot(table1, aes(x = taxa_elm, y = n, fill = mean)) + geom_bar(stat = "identity") +
+  coord_flip() + theme_light() + ylab("Number of Genomes per Taxonomic Group") +  xlab("") +
+  scale_fill_viridis_c(option = "plasma", direction = -1 )
+p3 <- ggarrange(p1, p2, align = "hv", legend = "top", widths = c(6,4))
+ggsave(filename = "2025Results/Fig2Variations/fig2_v5.pdf", plot = p3, width=14, height=5)
+
+p2 <- ggplot(table1, aes(x = taxa_elm, y = n, fill = mean)) + geom_bar(stat = "identity") +
+  coord_flip() + theme_light() + ylab("Number of Genomes per Taxonomic Group") +  xlab("") +
+  scale_fill_viridis_c(option = "mako", direction = -1 )+ scale_y_log10(minor_breaks = NULL)
+p3 <- ggarrange(p1, p2, align = "hv", legend = "top", widths = c(6,4))
+ggsave(filename = "2025Results/Fig2Variations/fig2_v6.pdf", plot = p3, width=14, height=5)
+
+p2 <- ggplot(table1, aes(x = taxa_elm, y = n, fill = mean)) + geom_bar(stat = "identity") +
+  coord_flip() + theme_light() + ylab("Number of Genomes per Taxonomic Group") +  xlab("") +
+  scale_fill_viridis_c( direction = -1 ) + scale_y_log10(minor_breaks = NULL)
+p3 <- ggarrange(p1, p2, align = "hv", legend = "top", widths = c(6,4))
+ggsave(filename = "2025Results/Fig2Variations/fig2_v7.pdf", plot = p3, width=14, height=5)
+
+p2 <- ggplot(table1, aes(x = taxa_elm, y = n, fill = mean)) + geom_bar(stat = "identity") +
+  coord_flip() + theme_light() + ylab("Number of Genomes per Taxonomic Group") +  xlab("") +
+  scale_fill_viridis_c(option = "rocket", direction = -1 ) + scale_y_log10(minor_breaks = NULL)
+p3 <- ggarrange(p1, p2, align = "hv", legend = "top", widths = c(6,4))
+ggsave(filename = "2025Results/Fig2Variations/fig2_v8.pdf", plot = p3, width=14, height=5)
+
+p2 <- ggplot(our_genomes, aes(x = taxa_elm, y = Mean.Completeness)) + geom_boxplot( outlier.size=0) +
+  geom_jitter(position=position_jitter(0.2), size = 0.1)+
+  coord_flip() + theme_light() + ylab("Genome Completion") +  xlab("")
+p3 <- ggarrange(p1, p2, align = "hv", legend = "top", widths = c(6,4))
+ggsave(filename = "2025Results/Fig2Variations/fig2_v9.pdf", plot = p3, width=14, height=5)
+
+```
+# Figure 3, Version 1
+This version of figure 3 uses S proteome content that is older, before we thought about limiting the size of the proteins to protein lengths that made sense.
+
+## Panel A
+
+```{r}
+data <- read.csv("20250816_protein.filt.sum.csv", row.names = 1)
+s_content_df <- merge(x = our_genomes[,c(2,20,23)], y = data, by.x = "Genome", by.y = "genome")
+ggplot(s_content_df, aes(x = factor(Lifestyle, levels = c("assimilator", "incomplete", "auxotroph")), y = perTot.mu.wt)) + 
+  geom_violin(aes(color = factor(Lifestyle))) +theme_light()+ geom_boxplot(width=0.1, color="grey", alpha=0.2) +
+  scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/fig3a_1.pdf", unit = "in", height = 7, width = 10) 
+
+plt <- ggbetweenstats(
+  data = s_content_df,
+  x = Lifestyle,
+  y = perTot.mu.wt, digits = 3,
+  point.dodge.width = 0.8)
+plt + labs(
+  x = "Lifestyle", 
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/fig3a_2.pdf", unit = "in", height = 7, width = 10) 
+
+s_content_df_temp <- s_content_df %>% filter(taxa_elm != "Alpha-Pelagibacter")
+plt <- ggbetweenstats(
+  data = s_content_df_temp,
+  x = Lifestyle,
+  y = perTot.mu.wt, digits = 3,
+  point.dodge.width = 0.8)
+plt + labs(
+  x = "Lifestyle",
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/fig3a_3_sansSar11.pdf", unit = "in", height = 7, width = 10) 
+
+s_content_df_temp <- s_content_df %>% filter(taxa_elm != "Alpha-Pelagibacter") %>% filter(taxa_elm != "Firmicutes")
+plt <- ggbetweenstats(
+  data = s_content_df_temp,
+  x = Lifestyle,
+  y = perTot.mu.wt, digits = 3,
+  point.dodge.width = 0.8)
+plt + labs(
+  x = "Lifestyle",
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/fig3a_3_sansSar11Frim.pdf", unit = "in", height = 7, width = 10) 
+
+
+s_content_df_temp <- s_content_df[grep(x = s_content_df$Genome, pattern = "_REFG_"),]
+plt <- ggbetweenstats(
+  data = s_content_df_temp,
+  x = Lifestyle,
+  y = perTot.mu.wt, digits = 3,
+  point.dodge.width = 0.8)
+plt + labs(
+  x = "Lifestyle",
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/fig3a_4_onlyrefs.pdf", unit = "in", height = 7, width = 10) 
+
+plt <- ggbetweenstats(
+  data = s_content_df,
+  x = Lifestyle,
+  y = perTot.mu.wt,
+  type = "r", digits = 3,
+  point.dodge.width = 0.8)
+plt + labs(
+  x = "Lifestyle",
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/fig3a_2_robust.pdf", unit = "in", height = 7, width = 10) 
+
+s_content_df_temp <- s_content_df %>% filter(taxa_elm != "Alpha-Pelagibacter")
+plt <- ggbetweenstats(
+  data = s_content_df_temp,
+  x = Lifestyle,
+  y = perTot.mu.wt,
+  type = "r", digits = 3,
+  point.dodge.width = 0.8)
+plt + labs(
+  x = "Lifestyle",
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/fig3a_3_sansSar11_robust.pdf", unit = "in", height = 7, width = 10) 
+
+s_content_df_temp <- s_content_df %>% filter(taxa_elm != "Alpha-Pelagibacter") %>% filter(taxa_elm != "Firmicutes")
+plt <- ggbetweenstats(
+  data = s_content_df_temp,
+  x = Lifestyle,
+  y = perTot.mu.wt,
+  type = "r", digits = 3,
+  point.dodge.width = 0.8)
+plt + labs(
+  x = "Lifestyle",
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/fig3a_3_sansSar11Frim_robust.pdf", unit = "in", height = 7, width = 10) 
+
+
+s_content_df_temp <- s_content_df[grep(x = s_content_df$Genome, pattern = "_REFG_"),]
+plt <- ggbetweenstats(
+  data = s_content_df_temp,
+  x = Lifestyle,
+  y = perTot.mu.wt,
+  type = "r", digits = 3,
+  point.dodge.width = 0.8)
+plt + labs(
+  x = "Lifestyle",
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/fig3a_4_onlyrefs_robust.pdf", unit = "in", height = 7, width = 10) 
+
+
+```
+
+## Panel B
+```{r}
+# figure 3b
+library(ggridges)
+s_content_df$taxa_elm <- as.factor(s_content_df$taxa_elm)
+s_content_df$Lifestyle <- as.factor(s_content_df$Lifestyle)
+df1 <- s_content_df %>% 
+  group_by(taxa_elm) %>%
+  summarise(m = mean(perTot.mu.wt))
+fig3_order <- df1$taxa_elm[order(df1$m)] 
+ggplot(s_content_df, aes(x = perTot.mu.wt, y = factor(taxa_elm, fig3_order), fill = Lifestyle)) + 
+  geom_density_ridges(alpha=0.6) +   theme(axis.title.x=element_blank()) +
+  theme_ridges() + scale_fill_manual(values = c("#0016a6", "#0271a8", "#629e02"))
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = MaxCompletion, color = taxa_elm)) + geom_point()
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = taxa_elm, color = taxa_elm)) + geom_violin()
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = taxa_elm, color = taxa_elm)) + geom_boxplot()
+ggsave(plot = last_plot(), file = "2025Results/fig3b_1.pdf", unit = "in", height = 10, width = 10) 
+ 
+s_content_df_manu <- s_content_df %>% filter(taxa_elm %in% c("Archaea-Nitrosopumilaceae", "Archaea-Poseidoniia MGIIa", "Archaea-Poseidoniia MGIIb", "Alpha-Puniceispirilla", "Archaea-Halobacteria", "Alpha-Pelagibacter", "Dadabacteria", "Actinobacteriota"))
+df1 <- s_content_df_manu %>% 
+  group_by(taxa_elm) %>%
+  summarise(m = mean(perTot.mu.wt))
+fig3_order <- df1$taxa_elm[order(df1$m)] 
+ggplot(s_content_df_manu, aes(x = perTot.mu.wt, y = factor(taxa_elm, fig3_order), fill = Lifestyle)) + 
+  geom_density_ridges(alpha=0.6) + 
+  theme_ridges() + scale_fill_manual(values = c("#0016a6", "#0271a8", "#629e02"))
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = MaxCompletion, color = taxa_elm)) + geom_point()
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = taxa_elm, color = taxa_elm)) + geom_violin()
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = taxa_elm, color = taxa_elm)) + geom_boxplot()
+ggsave(plot = last_plot(), file = "2025Results/fig3b_2.pdf", unit = "in", height = 10, width = 10) 
+
+```
+
+Plot the distribution of S content in violin plots by taxa so we can see if there are taxa we are interested in featuring in panel B.
+```{r}
+for (taxa in unique(s_content_df$taxa_elm)){
+  s_content_df_temp <- s_content_df %>% filter(taxa_elm == taxa)
+  p1 <- ggbetweenstats(
+    data = s_content_df_temp,
+    x = Lifestyle,
+    y = perTot.mu.wt,
+    violin.args = list(width = 0),
+    type = "p",
+    conf.level = 0.99,
+    title = "Parametric test",
+    package = "ggsci",
+    palette = "nrc_npg"
+  )
+  
+  p2 <- ggbetweenstats(
+    data = s_content_df_temp,
+    x = Lifestyle,
+    y = perTot.mu.wt,
+    boxplot.args = list(width = 0),
+    type = "np",
+    conf.level = 0.99,
+    title = "Non-parametric Test",
+    package = "ggsci",
+    palette = "uniform_startrek"
+  )
+  
+  p3 <- ggbetweenstats(
+    data = s_content_df_temp,
+    x = Lifestyle,
+    y = perTot.mu.wt,
+    type = "r",
+    conf.level = 0.99,
+    title = "Robust Test",
+    tr = 0.005,
+    package = "wesanderson",
+    palette = "Royal2",
+    digits = 3
+  )
+  
+  ## Bayes Factor for parametric t-test and boxviolin plot
+  p4 <- ggbetweenstats(
+    data = s_content_df_temp,
+    x = Lifestyle,
+    y = perTot.mu.wt,
+    type = "bayes",
+    violin.args = list(width = 0),
+    boxplot.args = list(width = 0),
+    point.args = list(alpha = 0),
+    title = "Bayesian Test",
+    package = "ggsci",
+    palette = "nrc_npg"
+  )
+  
+  ## combining the individual plots into a single plot
+  combine_plots(
+    list(p1, p2, p3, p4),
+    plotgrid.args = list(nrow = 2L),
+    annotation.args = list(
+      title = paste0("Comparison of S content for lifesytles within ", taxa)
+    )
+  )
+  ggsave(plot = last_plot(), file = paste0("2025Results/fig3b_", taxa, ".pdf"), unit = "in", height = 15, width = 15) 
+}
+
+for (taxa in unique(s_content_df$taxa_elm)[20:22]){
+  s_content_df_temp <- s_content_df %>% filter(taxa_elm == taxa)
+  p1 <- ggbetweenstats(
+    data = s_content_df_temp,
+    x = Lifestyle,
+    y = perTot.mu.wt,
+    violin.args = list(width = 0),
+    type = "p",
+    conf.level = 0.99,
+    title = "Parametric test",
+    package = "ggsci",
+    palette = "nrc_npg"
+  )
+  
+  p2 <- ggbetweenstats(
+    data = s_content_df_temp,
+    x = Lifestyle,
+    y = perTot.mu.wt,
+    boxplot.args = list(width = 0),
+    type = "np",
+    conf.level = 0.99,
+    title = "Non-parametric Test",
+    package = "ggsci",
+    palette = "uniform_startrek"
+  )
+  
+  p3 <- ggbetweenstats(
+    data = s_content_df_temp,
+    x = Lifestyle,
+    y = perTot.mu.wt,
+    type = "r",
+    conf.level = 0.99,
+    title = "Robust Test",
+    tr = 0.005,
+    package = "wesanderson",
+    palette = "Royal2",
+    digits = 3
+  )
+  
+  ## Bayes Factor for parametric t-test and boxviolin plot
+  p4 <- ggbetweenstats(
+    data = s_content_df_temp,
+    x = Lifestyle,
+    y = perTot.mu.wt,
+    type = "bayes",
+    violin.args = list(width = 0),
+    boxplot.args = list(width = 0),
+    point.args = list(alpha = 0),
+    title = "Bayesian Test",
+    package = "ggsci",
+    palette = "nrc_npg"
+  )
+  
+  ## combining the individual plots into a single plot
+  combine_plots(
+    list(p1, p2, p3, p4),
+    plotgrid.args = list(nrow = 2L),
+    annotation.args = list(
+      title = paste0("Comparison of S content for lifesytles within ", taxa)
+    )
+  )
+  ggsave(plot = last_plot(), file = paste0("2025Results/fig3b_", taxa, ".pdf"), unit = "in", height = 15, width = 15) 
+} 
+
+for (taxa in unique(s_content_df$taxa_elm)[24:30]){
+  s_content_df_temp <- s_content_df %>% filter(taxa_elm == taxa)
+  p1 <- ggbetweenstats(
+    data = s_content_df_temp,
+    x = Lifestyle,
+    y = perTot.mu.wt,
+    violin.args = list(width = 0),
+    type = "p",
+    conf.level = 0.99,
+    title = "Parametric test",
+    package = "ggsci",
+    palette = "nrc_npg"
+  )
+  
+  p2 <- ggbetweenstats(
+    data = s_content_df_temp,
+    x = Lifestyle,
+    y = perTot.mu.wt,
+    boxplot.args = list(width = 0),
+    type = "np",
+    conf.level = 0.99,
+    title = "Non-parametric Test",
+    package = "ggsci",
+    palette = "uniform_startrek"
+  )
+  
+  p3 <- ggbetweenstats(
+    data = s_content_df_temp,
+    x = Lifestyle,
+    y = perTot.mu.wt,
+    type = "r",
+    conf.level = 0.99,
+    title = "Robust Test",
+    tr = 0.005,
+    package = "wesanderson",
+    palette = "Royal2",
+    digits = 3
+  )
+  
+  ## Bayes Factor for parametric t-test and boxviolin plot
+  p4 <- ggbetweenstats(
+    data = s_content_df_temp,
+    x = Lifestyle,
+    y = perTot.mu.wt,
+    type = "bayes",
+    violin.args = list(width = 0),
+    boxplot.args = list(width = 0),
+    point.args = list(alpha = 0),
+    title = "Bayesian Test",
+    package = "ggsci",
+    palette = "nrc_npg"
+  )
+  
+  ## combining the individual plots into a single plot
+  combine_plots(
+    list(p1, p2, p3, p4),
+    plotgrid.args = list(nrow = 2L),
+    annotation.args = list(
+      title = paste0("Comparison of S content for lifesytles within ", taxa)
+    )
+  )
+  ggsave(plot = last_plot(), file = paste0("2025Results/fig3b_", taxa, ".pdf"), unit = "in", height = 15, width = 15) 
+} 
+
+s_content_df %>% filter(taxa_elm %in% unique(s_content_df$taxa_elm)[1:6]) %>% 
+grouped_ggbetweenstats(
+  ## arguments relevant for ggbetweenstats
+  x = Lifestyle,
+  y = perTot.mu.wt,
+  grouping.var = taxa_elm,
+  pairwise.display = "significant", ## display only significant pairwise comparisons
+  p.adjust.method = "fdr", ## adjust p-values for multiple tests using this method
+  # ggtheme = ggthemes::theme_tufte(),
+  package = "ggsci",
+  palette = "default_jco",
+  ## arguments relevant for combine_plots
+  annotation.args = list(title = "Comparison of S content for lifesytles between taxa 1-6"),
+  plotgrid.args = list(ncol = 3)
+)
+ggsave(plot = last_plot(), file = paste0("2025Results/fig3b_taxa1.pdf"), unit = "in", height = 20, width = 30)
+
+s_content_df %>% filter(taxa_elm %in% unique(s_content_df$taxa_elm)[7:12]) %>% 
+  grouped_ggbetweenstats(
+    ## arguments relevant for ggbetweenstats
+    x = Lifestyle,
+    y = perTot.mu.wt,
+    grouping.var = taxa_elm,
+    pairwise.display = "significant", ## display only significant pairwise comparisons
+    p.adjust.method = "fdr", ## adjust p-values for multiple tests using this method
+    # ggtheme = ggthemes::theme_tufte(),
+    package = "ggsci",
+    palette = "default_jco",
+    ## arguments relevant for combine_plots
+    annotation.args = list(title = "Comparison of S content for lifesytles between taxa 7-12"),
+    plotgrid.args = list(ncol = 3)
+  )
+ggsave(plot = last_plot(), file = paste0("2025Results/fig3b_taxa2.pdf"), unit = "in", height = 20, width = 30)
+
+s_content_df %>% filter(taxa_elm %in% unique(s_content_df$taxa_elm)[13:18]) %>% 
+  grouped_ggbetweenstats(
+    ## arguments relevant for ggbetweenstats
+    x = Lifestyle,
+    y = perTot.mu.wt,
+    grouping.var = taxa_elm,
+    pairwise.display = "significant", ## display only significant pairwise comparisons
+    p.adjust.method = "fdr", ## adjust p-values for multiple tests using this method
+    # ggtheme = ggthemes::theme_tufte(),
+    package = "ggsci",
+    palette = "default_jco",
+    ## arguments relevant for combine_plots
+    annotation.args = list(title = "Comparison of S content for lifesytles between taxa 7-12"),
+    plotgrid.args = list(ncol = 3)
+  )
+ggsave(plot = last_plot(), file = paste0("2025Results/fig3b_taxa3.pdf"), unit = "in", height = 20, width = 30)
+
+s_content_df %>% filter(taxa_elm %in% unique(s_content_df$taxa_elm)[19:24]) %>% 
+  grouped_ggbetweenstats(
+    ## arguments relevant for ggbetweenstats
+    x = Lifestyle,
+    y = perTot.mu.wt,
+    grouping.var = taxa_elm,
+    pairwise.display = "significant", ## display only significant pairwise comparisons
+    p.adjust.method = "fdr", ## adjust p-values for multiple tests using this method
+    # ggtheme = ggthemes::theme_tufte(),
+    package = "ggsci",
+    palette = "default_jco",
+    ## arguments relevant for combine_plots
+    annotation.args = list(title = "Comparison of S content for lifesytles between taxa 7-12"),
+    plotgrid.args = list(ncol = 3)
+  )
+ggsave(plot = last_plot(), file = paste0("2025Results/fig3b_taxa4.pdf"), unit = "in", height = 20, width = 30)
+
+s_content_df %>% filter(taxa_elm %in% unique(s_content_df$taxa_elm)[25:30]) %>% 
+  grouped_ggbetweenstats(
+    ## arguments relevant for ggbetweenstats
+    x = Lifestyle,
+    y = perTot.mu.wt,
+    grouping.var = taxa_elm,
+    pairwise.display = "significant", ## display only significant pairwise comparisons
+    p.adjust.method = "fdr", ## adjust p-values for multiple tests using this method
+    # ggtheme = ggthemes::theme_tufte(),
+    package = "ggsci",
+    palette = "default_jco",
+    ## arguments relevant for combine_plots
+    annotation.args = list(title = "Comparison of S content for lifesytles between taxa 7-12"),
+    plotgrid.args = list(ncol = 3)
+  )
+ggsave(plot = last_plot(), file = paste0("2025Results/fig3b_taxa5.pdf"), unit = "in", height = 20, width = 30)
+
+s_content_df_manu <- s_content_df %>% filter(taxa_elm %in% c("Gemmatimonadota", "Archaea-Poseidoniia MGIIa", "Archaea-Poseidoniia MGIIb", "Planctomycetota", "Archaea-Halobacteria", "SAR324"))
+df1 <- s_content_df_manu %>% 
+  group_by(taxa_elm) %>%
+  summarise(m = mean(perTot.mu.wt))
+fig3_order <- df1$taxa_elm[order(df1$m)] 
+ggplot(s_content_df_manu, aes(x = perTot.mu.wt, y = factor(taxa_elm, fig3_order), fill = Lifestyle)) + 
+  geom_density_ridges(alpha=0.6, scale = 1) + 
+  theme_ridges() + scale_fill_manual(values = c("#0016a6", "#0271a8", "#629e02"))
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = MaxCompletion, color = taxa_elm)) + geom_point()
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = taxa_elm, color = taxa_elm)) + geom_violin()
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = taxa_elm, color = taxa_elm)) + geom_boxplot()
+
+ggsave(plot = last_plot(), file = "2025Results/fig3b_3.pdf", unit = "in", height = 10, width = 10) 
+
+s_content_df_manu <- s_content_df %>% filter(taxa_elm %in% c( "Alpha-Pelagibacter", "Gamma-SAR92", "Alpha-Rhodobacter"))
+df1 <- s_content_df_manu %>% 
+  group_by(taxa_elm) %>%
+  summarise(m = mean(perTot.mu.wt))
+fig3_order <- df1$taxa_elm[order(df1$m)] 
+ggplot(s_content_df_manu, aes(x = perTot.mu.wt, y = factor(taxa_elm, fig3_order), fill = Lifestyle)) + 
+  geom_density_ridges(alpha=0.6, scale = 1) + 
+  theme_ridges() + scale_fill_manual(values = c("#0016a6", "#0271a8", "#629e02"))
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = MaxCompletion, color = taxa_elm)) + geom_point()
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = taxa_elm, color = taxa_elm)) + geom_violin()
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = taxa_elm, color = taxa_elm)) + geom_boxplot()
+
+ggsave(plot = last_plot(), file = "2025Results/fig3b_4_model.pdf", unit = "in", height = 10, width = 10) 
+
+
+df1 <- s_content_df %>% 
+  group_by(taxa_elm) %>%
+  summarise(m = mean(perTot.mu.wt))
+fig3_order <- df1$taxa_elm[order(df1$m)] 
+ggplot(s_content_df, aes(x = perTot.mu.wt, y = factor(taxa_elm, fig3_order), fill = Lifestyle)) + 
+  geom_density_ridges(alpha=0.6, scale = 1) + 
+  theme_ridges() + scale_fill_manual(values = c("#0016a6", "#0271a8", "#629e02"))
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = MaxCompletion, color = taxa_elm)) + geom_point()
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = taxa_elm, color = taxa_elm)) + geom_violin()
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = taxa_elm, color = taxa_elm)) + geom_boxplot()
+
+ggsave(plot = last_plot(), file = "2025Results/fig3b_5.pdf", unit = "in", height = 10, width = 10) 
+
+s_content_df_manu <- s_content_df %>% filter(taxa_elm %in% c( "Chloroflexota", "Alpha-Other", "Alpha-Rhodobacter"))
+df1 <- s_content_df_manu %>% 
+  group_by(taxa_elm) %>%
+  summarise(m = mean(perTot.mu.wt))
+fig3_order <- df1$taxa_elm[order(df1$m)] 
+ggplot(s_content_df_manu, aes(x = perTot.mu.wt, y = factor(taxa_elm, fig3_order), fill = Lifestyle)) + 
+  geom_density_ridges(alpha=0.6, scale = 1) + 
+  theme_ridges() + scale_fill_manual(values = c("#0016a6", "#0271a8", "#629e02"))
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = MaxCompletion, color = taxa_elm)) + geom_point()
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = taxa_elm, color = taxa_elm)) + geom_violin()
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = taxa_elm, color = taxa_elm)) + geom_boxplot()
+
+ggsave(plot = last_plot(), file = "2025Results/fig3b_6_statdifferent.pdf", unit = "in", height = 10, width = 10) 
+
+```
+
+
+# Figure 3, Version 2
+This uses the S protein content calculated in September, 2025, that takes into account filtering for protein length.
+## Panel A
+```{r}
+data <- read.csv("20250905_protein.filt.sum.csv", row.names = 1)
+our_genomes <- read.csv("../new_filtered_SA/2024_June19_ERIN_SulfateAssimilationprocessed_above75genomecompletion.csv")
+s_content_df <- merge(x = our_genomes[,c(2,20,23)], y = data, by.x = "Genome", by.y = "genome")
+ggplot(s_content_df, aes(x = factor(Lifestyle, levels = c("assimilator", "incomplete", "auxotroph")), y = avgS)) + 
+  geom_violin(aes(color = factor(Lifestyle))) +theme_light()+ geom_boxplot(width=0.1, color="grey", alpha=0.2) +
+  scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3a_1.pdf", unit = "in", height = 7, width = 10) 
+
+plt <- ggbetweenstats(
+  data = s_content_df,
+  x = Lifestyle,
+  y = avgS, digits = 3,
+  point.dodge.width = 0.8)
+plt + labs(
+  x = "Lifestyle", 
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3a_2.pdf", unit = "in", height = 7, width = 10) 
+
+s_content_df_temp <- s_content_df %>% filter(taxa_elm != "Alpha-Pelagibacter")
+plt <- ggbetweenstats(
+  data = s_content_df_temp,
+  x = Lifestyle,
+  y = avgS, digits = 3,
+  point.dodge.width = 0.8)
+plt + labs(
+  x = "Lifestyle",
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3a_3_sansSar11.pdf", unit = "in", height = 7, width = 10) 
+
+s_content_df_temp <- s_content_df %>% filter(taxa_elm != "Alpha-Pelagibacter") %>% filter(taxa_elm != "Firmicutes")
+plt <- ggbetweenstats(
+  data = s_content_df_temp,
+  x = Lifestyle,
+  y = avgS, digits = 3,
+  point.dodge.width = 0.8)
+plt + labs(
+  x = "Lifestyle",
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3a_3_sansSar11Frim.pdf", unit = "in", height = 7, width = 10) 
+
+
+s_content_df_temp <- s_content_df[grep(x = s_content_df$Genome, pattern = "_REFG_"),]
+plt <- ggbetweenstats(
+  data = s_content_df_temp,
+  x = Lifestyle,
+  y = avgS, digits = 3,
+  point.dodge.width = 0.8)
+plt + labs(
+  x = "Lifestyle",
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3a_4_onlyrefs.pdf", unit = "in", height = 7, width = 10) 
+
+plt <- ggbetweenstats(
+  data = s_content_df,
+  x = Lifestyle,
+  y = avgS,
+  type = "r", digits = 3,
+  point.dodge.width = 0.8)
+plt + labs(
+  x = "Lifestyle",
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3a_2_robust.pdf", unit = "in", height = 7, width = 10) 
+
+s_content_df_temp <- s_content_df %>% filter(taxa_elm != "Alpha-Pelagibacter")
+plt <- ggbetweenstats(
+  data = s_content_df_temp,
+  x = Lifestyle,
+  y = avgS,
+  type = "r", digits = 3,
+  point.dodge.width = 0.8)
+plt + labs(
+  x = "Lifestyle",
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3a_3_sansSar11_robust.pdf", unit = "in", height = 7, width = 10) 
+
+s_content_df_temp <- s_content_df %>% filter(taxa_elm != "Alpha-Pelagibacter") %>% filter(taxa_elm != "Firmicutes")
+plt <- ggbetweenstats(
+  data = s_content_df_temp,
+  x = Lifestyle,
+  y = avgS,
+  type = "r", digits = 3,
+  point.dodge.width = 0.8)
+plt + labs(
+  x = "Lifestyle",
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3a_3_sansSar11Frim_robust.pdf", unit = "in", height = 7, width = 10) 
+
+
+s_content_df_temp <- s_content_df[grep(x = s_content_df$Genome, pattern = "_REFG_"),]
+plt <- ggbetweenstats(
+  data = s_content_df_temp,
+  x = Lifestyle,
+  y = avgS,
+  type = "r", digits = 3,
+  point.dodge.width = 0.8)
+plt + labs(
+  x = "Lifestyle",
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3a_4_onlyrefs_robust.pdf", unit = "in", height = 7, width = 10) 
+
+```
+Let's make a new panel A without any incompletes.
+```{r}
+getwd()
+our_genomes <- read.csv("new_filtered_SA/2024_June19_ERIN_SulfateAssimilationprocessed_above75genomecompletion.csv")
+data <- read.csv("../20250905_protein.filt.sum.csv", row.names = 1)
+s_content_df <- merge(x = our_genomes[,c(2,20,23)], y = data, by.x = "Genome", by.y = "genome")
+plt <- s_content_df %>% filter(Lifestyle != "incomplete") %>% 
+  ggbetweenstats(
+  x = Lifestyle,
+  y = avgS, digits = 3,
+  point.dodge.width = 0.8)
+
+plt + labs(
+  x = "Lifestyle", 
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[2]))
+ggsave(plot = last_plot(), file = "newProteinFilter_09052025/fig3a_2_noincompletes.pdf", unit = "in", height = 6, width = 6) 
+
+```
+
+## Panel B
+The last plot in this set of plots is the one that has all taxa, with free scale, that we would want to use in supplemental and in the main paper when subsetting the taxa to ones we want to talk about in the paper.
+```{r}
+s_content_df$taxa_elm <- as.factor(s_content_df$taxa_elm)
+s_content_df$Lifestyle <- as.factor(s_content_df$Lifestyle)
+df1 <- s_content_df %>% 
+  group_by(taxa_elm) %>%
+  summarise(m = mean(avgS))
+fig3_order <- df1$taxa_elm[order(df1$m)] 
+ggplot(s_content_df, aes(x = avgS, y = factor(taxa_elm, fig3_order), fill = Lifestyle)) + 
+  geom_density_ridges(alpha=0.6, scale =1) +   theme(axis.title.x=element_blank()) +
+  theme_ridges() + scale_fill_manual(values = c("#0016a6", "#0271a8", "#629e02"))
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = MaxCompletion, color = taxa_elm)) + geom_point()
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = taxa_elm, color = taxa_elm)) + geom_violin()
+# ggplot(s_content_df, aes(x = perTot.mu.wt, y = taxa_elm, color = taxa_elm)) + geom_boxplot()
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3b_1.pdf", unit = "in", height = 20, width = 10) 
+
+ggplot(s_content_df, aes(x = avgS, y = factor(taxa_elm, fig3_order), fill = Lifestyle)) + 
+  geom_density_ridges(alpha=0.6, stat = "binline", scale = 1) +   theme(axis.title.x=element_blank()) +
+  theme_ridges() + scale_fill_manual(values = c("#0016a6", "#0271a8", "#629e02"))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3b_2.pdf", unit = "in", height = 20, width = 10) 
+
+ggplot(s_content_df) + 
+  geom_density_ridges(aes(x = avgS, y = factor(taxa_elm, fig3_order), fill = Lifestyle, height = after_stat(count)),
+                                            stat = "density", scale = 1, alpha = 0.6) +   
+  theme(axis.title.x=element_blank()) +
+  theme_ridges() + scale_fill_manual(values = c("#0016a6", "#0271a8", "#629e02"))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3b_3.pdf", unit = "in", height = 20, width = 10) 
+
+ggplot(s_content_df) + 
+  geom_density_ridges(aes(x = avgS, y = factor(taxa_elm, fig3_order), fill = Lifestyle, height = after_stat(count)),
+                      stat = "binline", scale = 1, alpha = 0.6) +   
+  theme(axis.title.x=element_blank()) +
+  theme_ridges() + scale_fill_manual(values = c("#0016a6", "#0271a8", "#629e02"))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3b_4.pdf", unit = "in", height = 20, width = 10) 
+
+
+for (taxa in unique(s_content_df$taxa_elm)){
+  s_content_df %>% filter(taxa_elm == taxa) %>% ggplot(aes(x = avgS, fill = Lifestyle)) + geom_histogram(alpha=0.6,position = 'identity') + facet_wrap(~Lifestyle)
+  ggsave(plot = last_plot(), file = paste0("2025Results/newProteinFilter_09052025/fig3b_",taxa,".pdf"), unit = "in", height = 5, width = 10) 
+}
+
+s_content_df %>% 
+  ggplot(aes(x = avgS, fill = Lifestyle)) + 
+  geom_histogram(alpha=0.6, position = 'identity') + facet_wrap(taxa_elm~., ncol = 1, scales = "free_y") + scale_fill_manual(values = c("#0016a6", "#0271a8", "#629e02"))
+ggsave(plot = last_plot(), file = paste0("2025Results/newProteinFilter_09052025/fig3b_v2.pdf"), unit = "in", height = 40, width = 10) 
+
+```
+### S auxoptrophs : oligotrophs and copiotrophs
+```{r}
+fig3_order2 <- c("Alpha-Pelagibacter","Gamma-SAR86","SAR324","Patescibacteria", "Firmicutes","Alpha-Puniceispirilla", "Marinisomatota")
+s_content_df %>% filter(taxa_elm %in% c("Alpha-Pelagibacter","Gamma-SAR86","Patescibacteria", "Firmicutes","SAR324","Alpha-Puniceispirilla", "Marinisomatota")) %>% 
+  ggplot(aes(x = avgS, y = factor(taxa_elm, fig3_order), fill = Lifestyle)) + 
+  geom_density_ridges(alpha=0.6, scale =1) +   theme(axis.title.x=element_blank()) +
+  theme_ridges() + scale_fill_manual(values = c("#0016a6", "#0271a8", "#629e02"))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3b_1_Sauxotrophs.pdf", unit = "in", height = 10, width = 10) 
+
+s_content_df %>% filter(taxa_elm %in% c("Alpha-Pelagibacter","Gamma-SAR86","Patescibacteria", "Firmicutes","SAR324","Alpha-Puniceispirilla", "Marinisomatota")) %>% 
+  ggplot( aes(x = avgS, y = factor(taxa_elm, fig3_order2), fill = Lifestyle)) + 
+  geom_density_ridges(alpha=0.6, stat = "binline", scale = 1) +   theme(axis.title.x=element_blank()) +
+  theme_ridges() + scale_fill_manual(values = c("#0016a6", "#0271a8", "#629e02"))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3b_2_Sauxotrophs.pdf", unit = "in", height = 10, width = 10) 
+
+s_content_df %>% filter(taxa_elm %in% c("Alpha-Pelagibacter","Gamma-SAR86","Patescibacteria", "Firmicutes","SAR324","Alpha-Puniceispirilla", "Marinisomatota")) %>% ggplot() + 
+  geom_density_ridges(aes(x = avgS, y = factor(taxa_elm, fig3_order), fill = Lifestyle, height = after_stat(count)),
+                      stat = "density", scale = 1, alpha = 0.6) +   
+  theme(axis.title.x=element_blank()) +
+  theme_ridges() + scale_fill_manual(values = c("#0016a6", "#0271a8", "#629e02"))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3b_3_Sauxotrophs.pdf", unit = "in", height = 10, width = 10) 
+
+ s_content_df %>% filter(taxa_elm %in% c("Alpha-Pelagibacter","Gamma-SAR86","Patescibacteria", "Firmicutes","SAR324","Alpha-Puniceispirilla", "Marinisomatota")) %>% ggplot() + 
+  geom_density_ridges(aes(x = avgS, y = factor(taxa_elm, fig3_order2), fill = Lifestyle, height = after_stat(count)),
+                      stat = "binline", scale = 1, alpha = 0.6) +   
+  theme(axis.title.x=element_blank()) +
+  theme_ridges() + scale_fill_manual(values = c("#0016a6", "#0271a8", "#629e02"))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3b_4_Sauxotrophs.pdf", unit = "in", height = 10, width = 10) 
+
+```
+### Panel B without incompletes
+```{r}
+fig3_order3 <- c("Firmicutes", "Alpha-Pelagibacter", "Gamma-Alteromonadaceae", "Alpha-Rhodobacter")
+s_content_df %>% filter(taxa_elm %in% fig3_order3) %>% filter(Lifestyle != "incomplete") %>%
+  ggplot(aes(x = avgS, fill = Lifestyle)) + 
+  geom_histogram(alpha=0.6, position = 'identity') + facet_wrap(taxa_elm~., ncol = 2, scales = "free_y") + scale_fill_manual(values = c("#0016a6", "#629e02")) + theme_light()
+ggsave(plot = last_plot(), file = paste0("newProteinFilter_09052025/fig3b_v2_noincompletes_selecttaxa.pdf"), unit = "in", height = 5, width = 6) 
+```
+
+
+# Figure 4
+This figure looks at the pathways per genome, and includes indicator analysis.
+## Panel B
+This takes the max completion values for each pathway for each genome and makes bar plots out of those values.
+```{r}
+df1 <- merge(maxcompletion, si_lifestyle, by.x = "Genome", by.y = "Genome")
+#remove those pathays we aren't interested in
+names(df1)[which(names(df1) == "DOS.Misc.Degradation.2")] <- "Sulfite.Export"
+names(df1)[which(names(df1) == "DOS.Misc.Degradation.3")] <- "Sulfite.Dehydrogenase"
+df1[,which(names(df1) == "DOS.Misc.Degradation.4")] <- NULL
+df1[,which(names(df1) == "Methionine.Salvage.Part.1")] <- NULL
+df1[,which(names(df1) == "Methionine.Salvage.Part.2")] <- NULL
+df1[,which(names(df1) == "Methionine.Salvage.Fusion.Enzyme")] <- NULL
+df1[,which(names(df1) == "Methionine.Salvage.Anaerobic.Isoprenoid.Shunt")] <- NULL
+df1[,which(names(df1) == "Methionine.Salvage.Anaerobic.Degradation.of.MTRu1P")] <- NULL
+
+df2 <- gather(df1, key = "key", value = "value", Cysteine.Biosynthesis:S.adenosyl.L.homocysteine.degradation)
+nrow(df2)/length(unique(df2$key))
+#none removed here
+df2 <- df2 %>% filter(value==0 | value==1)
+((36*16059)-nrow(df2))
+#removing 35,204
+((36*16059)-nrow(df2))/(36*16059)
+# which is 6% of our dataset
+df2 <- df2 %>% mutate(across(4, \(x)if_else(x==0,"Absent","Present")))
+df2$value <- factor(df2$value)
+df2$Lifestyle <- factor(df2$Lifestyle)
+df2$key <- factor(df2$key)
+df3 <- df2 %>% filter(value == "Present") %>% group_by(key) %>% summarise(count = n()) %>% arrange(., count)
+order <- rev(df3$key)
+p4 <- ggplot(df2, aes(x = factor(key, order), fill = value)) + geom_bar() + 
+  theme_linedraw() +theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) + xlab("Pathway") + 
+  facet_grid(Lifestyle ~ .)+
+  scale_fill_manual(values = values6[c(6,2)]) +
+  theme(plot.margin = unit(c(0,0,0,2), "cm")) + theme(axis.text.x = element_text(size = 14))
+p4
+ggsave(plot = last_plot(), file = "2025Results/fig4Varations/fig4_a.pdf", unit = "in", height = 20, width = 20) 
+p4 <- ggplot(df2, aes(x = factor(key, order), fill = value)) + geom_bar() + 
+  theme_linedraw() +theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) + xlab("Pathway") + 
+  facet_grid(Lifestyle ~ .)+
+  scale_fill_manual(values = values6[c(5,3)]) +
+  theme(plot.margin = unit(c(0,0,0,2), "cm")) + theme(axis.text.x = element_text(size = 14))
+p4
+ggsave(plot = last_plot(), file = "2025Results/fig4Varations/fig4_b.pdf", unit = "in", height = 20, width = 20) 
+p4 <- ggplot(df2, aes(x = factor(key, order), fill = value)) + geom_bar() + 
+  theme_linedraw() +theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) + xlab("Pathway") + 
+  facet_grid(Lifestyle ~ .)+
+  scale_fill_manual(values = values6[c(4,1)]) +
+  theme(plot.margin = unit(c(0,0,0,2), "cm")) + theme(axis.text.x = element_text(size = 14))
+p4
+ggsave(plot = last_plot(), file = "2025Results/fig4Varations/fig4_c.pdf", unit = "in", height = 20, width = 20) 
+df1 %>% group_by(Lifestyle) %>% summarise(count = n())
+
+# plot the number of genomes per lifestyle and the number of genomes that contain each pathway
+df2 <- gather(df1, key = "key", value = "value", Cysteine.Biosynthesis:S.adenosyl.L.homocysteine.degradation)
+df2 <- df2 %>% filter(value ==1)
+df3 <- df2 %>% group_by(key) %>% summarise(count = n()) %>% arrange(., count)
+core_pathways <- df3$key[which(df3$count >= .75*16059)]
+order <- rev(df3$key)
+df2$core_value <- NA
+df2$core_value[which(df2$key %in% core_pathways)] <- "Core"
+df2$core_value[which(!(df2$key %in% core_pathways))] <- "Accessory"
+
+# pathway
+p5 <- ggplot(df2, aes(x = factor(key, order))) + 
+  geom_bar(fill = "black") + theme_linedraw() + theme(axis.text.x = element_text( angle = 45, vjust = 1, hjust=1)) + 
+  xlab("Pathway")  
+p5
+ggsave(plot = last_plot(), file = "2025Results/fig4_d.pdf", unit = "in", height = 20, width = 20) 
+
+# lifestyle
+df2 <- df1 %>% group_by(Lifestyle) %>% summarise(count = n())
+p6 <- ggplot(df1, aes(x = Lifestyle)) + coord_flip() +
+  geom_bar(fill = "black") + theme_linedraw() 
+p6 
+ggsave(plot = last_plot(), file = "2025Results/fig4_e.pdf", unit = "in", height = 20, width = 20) 
+
+```
+## Panel A
+This is the Indicator Analysis
+```{r}
+# table with info about sulfate assimilation, filtered for 75% completion
+taxa <- read.csv("/Users/michelle/Documents/DOSTraits/new_filtered_SA/2024_June19_ERIN_SulfateAssimilationprocessed_above75genomecompletion.csv")[,-1]
+head(taxa)
+# original taxonomy meta table from microbiomics group, with updated taxa_elm column 12/9/2024
+taxa_all <- read.csv("/Users/michelle/Documents/DOSTraits/genome_summary_ELM_2.csv")
+taxa <- merge(taxa,taxa_all,by="Genome", all.y=F)
+# there will be two taxa_elm columns right now, again because of the update 12/9/2024, compare here for sanity check
+taxa %>% group_by(taxa_elm.x,taxa_elm.y) %>% summarise(n=n()) %>% filter(taxa_elm.x != taxa_elm.y)
+# this is correct so get rid of the old taxa_elm and keep the new
+taxa <- taxa %>% dplyr::select(-taxa_elm.x) %>% rename(taxa_elm = taxa_elm.y)
+# also have repetitive Mean.Completeness column
+all(taxa$Mean.Completeness.x == taxa$Mean.Completeness.y)
+taxa <- taxa %>% dplyr::select(-Mean.Completeness.x) %>% rename(Mean.Completeness = Mean.Completeness.y)
+# read in summary results
+df <- read.csv("/Users/michelle/Documents/DOSTraits/kofam_results/summary_max_table.csv")
+colnames(df)[1] <- "strain"
+df <- merge(taxa[,c('Genome','taxa_elm','Mean.Completeness','Lifestyle')],df, by.x = "Genome", by.y = "strain")
+abund <- as.matrix(df[,5:46])
+dim(abund) #vegan community data matrix; rows='samples', columns = 'species'; here samples = MAGs, traits = species
+
+#remove any genomes not assigned a GTDB taxonomy.
+idx <- which(is.na(taxa$Phyla))
+length(idx)
+abund <- abund[-idx,]
+df <- df[-idx,]
+taxa <- taxa[-idx,]
+#remove any MAGs with only zeros
+idx <- which(rowSums(abund) == 0)
+length(idx)
+abund <- abund[-idx,]
+df <- df[-idx,]
+taxa <- taxa[-idx,]
+dim(taxa)
+
+# subset happens here
+t <- taxa %>%
+  filter(Lifestyle != "incomplete") %>%
+  filter(taxa_elm != "SAR324") %>%
+  filter(Mean.Completeness > 85) %>%
+  filter(Mean.Contamination < 10) %>% pull(Genome)
+idx <- which(df$Genome %in% t)
+df.sub <- df[idx,]
+abund.sub <- abund[idx,]
+
+
+# some numbers
+taxa %>%
+  filter(Lifestyle != "incomplete") %>%
+  filter(Mean.Completeness > 85) %>%
+  filter(Mean.Contamination < 10) %>%
+  group_by(Lifestyle) %>% summarise(n = n()) %>%
+  pivot_wider(names_from = Lifestyle, values_from = n) %>% 
+  mutate(tot = assimilator+auxotroph) %>%
+  mutate(per.aux = auxotroph/tot)
+
+# look at the names of the pathways and check them; can also remove pathways here
+colnames(abund.sub)
+#subset
+#idx <- c(grep("DOS.Misc", colnames(abund.sub)), grep("Salvage", colnames(abund.sub)), grep("SO4thio",colnames(abund.sub)))#,
+         #grep("Sulfo",colnames(abund.sub)), grep("homocysteine",colnames(abund.sub)),grep("Glutathione",colnames(abund.sub)),grep("lactone",colnames(abund.sub)))
+#abund.sub.min <- abund.sub[,-idx]
+abund.sub.min <- abund.sub
+dim(abund.sub.min)
+colnames(abund.sub.min)
+# renaming the Miscellaneous DOS degradation pathways
+colnames(abund.sub.min)[which(colnames(abund.sub.min) == "DOS.Misc.Degradation.2")] <- "Sulfite.Export"
+colnames(abund.sub.min)[which(colnames(abund.sub.min) == "DOS.Misc.Degradation.3")] <- "Sulfite.Dehydrogenase"
+colnames(abund.sub.min)
+
+# work in presence/absence space
+abund.sub.min <- decostand(abund.sub.min, method = "pa")
+# when you do this your cysteine biosynthesis column is all 1's so we will remove
+i = which(colSums(abund.sub.min) == 5008)
+abund.sub.min <- abund.sub.min[,-i]
+any(rowSums(abund.sub.min) == 0)
+any(colSums(abund.sub.min) == 0)
+
+## Perform ISA on the two groups
+cut.life <- df.sub$Lifestyle #grouping for ISA
+ind <- multipatt(abund.sub.min, cluster = cut.life, duleg = TRUE) 
+summary(ind)
+
+## Get the output for scores A and B
+tmpA <- data.frame(ind$A) %>% mutate(ind.vari = rownames(ind$A)) %>% pivot_longer(cols = 1:2) %>% mutate(score = "A")
+tmpB <- data.frame(ind$B) %>% mutate(ind.vari = rownames(ind$A)) %>% pivot_longer(cols = 1:2) %>% mutate(score = "B")
+
+n <- tmpA %>% filter(name == "auxotroph" & value > 0.5 |
+                     name == "assimilator" & value > 0.5) %>% pull(ind.vari)
+temp_indicatorgroup <- rbind(tmpA,tmpB) %>%
+  pivot_wider(names_from  = score, values_from = value) %>%
+  mutate(score = sqrt(A*B)) %>%
+  pivot_wider(names_from = name, values_from = c(A,B,score)) %>%
+  mutate(score_diff = (score_assimilator - score_auxotroph)) %>%
+  mutate(indicator.group = case_when(score_diff < -0.05 ~ "auxotroph", score_diff > 0.05 ~ "assimilator", TRUE ~ "common")) %>%
+  dplyr::select(ind.vari, A_auxotroph,B_auxotroph,A_assimilator,B_assimilator,indicator.group) %>% 
+  pivot_longer(cols = 2:5) %>%
+  mutate(score = case_when(name == "A_auxotroph" | name == "A_assimilator" ~ "A",
+                           name == "B_auxotroph" | name == "B_assimilator" ~ "B")) %>%
+  mutate(type = case_when(name == "A_auxotroph" | name == "B_auxotroph" ~ "auxotroph",
+                           name == "A_assimilator" | name == "B_assimilator" ~ "assimilator")) %>%
+  dplyr::select(-name) %>%
+  pivot_wider(names_from = score, values_from = value)
+tmpAB <- rbind(tmpA,tmpB) %>%
+  pivot_wider(names_from  = score, values_from = value) %>%
+  mutate(score = sqrt(A*B)) %>%
+  pivot_wider(names_from = name, values_from = c(A,B,score)) %>%
+  mutate(score_diff = (score_assimilator - score_auxotroph)) %>%
+  arrange(score_diff) %>% print(n=42)
+tmpAB <- gather(tmpAB[,c(1,6,7)], key = key, value = value, score_assimilator:score_auxotroph)
+write.csv(tmpAB, "/Users/michelle/Documents/DOSTraits/2025Results/IndicatorValues.csv",quote = F, col.names = T)
+write.csv(temp_indicatorgroup, "/Users/michelle/Documents/DOSTraits/2025Results/IndicatorGroups.csv",quote = F, col.names = T)
+```
+This plots indicator values for both auxotrophs and assimilators for all pathways.
+```{r}
+# using the order we established in panel B, and the two files we just saved:
+fd_IV <- read.csv("2025Results/IndicatorValues.csv", row.names = 1)
+df_Indgroup <- read.csv("2025Results/IndicatorGroups.csv", row.names = 1)[,1:2][duplicated(read.csv("2025Results/IndicatorGroups.csv", row.names = 1)[,1:2]),]
+fd_IV$ind.vari[which(!(fd_IV$ind.vari %in% order))]
+order[which(!(order %in% fd_IV$ind.vari))]
+#Cysteine.Biosynthesis
+tmppaths <- c("Cysteine.Biosynthesis")
+tmpdf <- as.data.frame(cbind(tmppaths, c(NA), c(NA)))
+names(tmpdf) <- names(fd_IV)
+fd_IV <- fd_IV %>% filter(ind.vari %in% order)
+fd_IV <- rbind(fd_IV, tmpdf)
+tmpdf <- as.data.frame(cbind(tmppaths, c(NA)))
+names(tmpdf) <- names(df_Indgroup)
+df_Indgroup <- rbind(df_Indgroup, tmpdf)
+fd_IV <- merge(fd_IV, df_Indgroup, by = "ind.vari")
+fd_IV$value <- as.numeric(fd_IV$value)
+ggplot(fd_IV, aes(x = factor(ind.vari, order), y = value, shape = key, color = indicator.group)) + 
+  geom_point(size = 4) +
+  scale_color_manual(values = c('#2F397A','#415521','#A88205')) +
+  ylim(0,1) + theme_linedraw()+theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  theme(plot.margin = unit(c(0,0,0,2), "cm")) 
+ggsave(plot = last_plot(), file = "2025Results/fig4Varations/fig4_d1.pdf", unit = "in", height = 5, width = 20)   
+ggplot(fd_IV, aes(x = factor(ind.vari, order), y = value, shape = key)) + 
+  geom_point(color = "black", size = 4) +
+  ylim(0,1) + theme_linedraw()+theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  theme(plot.margin = unit(c(0,0,0,2), "cm")) 
+ggsave(plot = last_plot(), file = "2025Results/fig4Varations/fig4_d2.pdf", unit = "in", height = 5, width = 20)  
+```
+We'll redo the ISA with the incomplete values instead of turning them to one, as we do above.
+```{r}
+# table with info about sulfate assimilation, filtered for 75% completion
+taxa <- read.csv("/Users/michelle/Documents/DOSTraits/new_filtered_SA/2024_June19_ERIN_SulfateAssimilationprocessed_above75genomecompletion.csv")[,-1]
+head(taxa)
+# original taxonomy meta table from microbiomics group, with updated taxa_elm column 12/9/2024
+taxa_all <- read.csv("/Users/michelle/Documents/DOSTraits/genome_summary_ELM_2.csv")
+taxa <- merge(taxa,taxa_all,by="Genome", all.y=F)
+# there will be two taxa_elm columns right now, again because of the update 12/9/2024, compare here for sanity check
+taxa %>% group_by(taxa_elm.x,taxa_elm.y) %>% summarise(n=n()) %>% filter(taxa_elm.x != taxa_elm.y)
+# this is correct so get rid of the old taxa_elm and keep the new
+taxa <- taxa %>% dplyr::select(-taxa_elm.x) %>% rename(taxa_elm = taxa_elm.y)
+# also have repetitive Mean.Completeness column
+all(taxa$Mean.Completeness.x == taxa$Mean.Completeness.y)
+taxa <- taxa %>% dplyr::select(-Mean.Completeness.x) %>% rename(Mean.Completeness = Mean.Completeness.y)
+# read in summary results
+df <- read.csv("/Users/michelle/Documents/DOSTraits/kofam_results/summary_max_table.csv")
+colnames(df)[1] <- "strain"
+df <- merge(taxa[,c('Genome','taxa_elm','Mean.Completeness','Lifestyle')],df, by.x = "Genome", by.y = "strain")
+abund <- as.matrix(df[,5:46])
+dim(abund) #vegan community data matrix; rows='samples', columns = 'species'; here samples = MAGs, traits = species
+
+#remove any genomes not assigned a GTDB taxonomy.
+idx <- which(is.na(taxa$Phyla))
+length(idx)
+abund <- abund[-idx,]
+df <- df[-idx,]
+taxa <- taxa[-idx,]
+#remove any MAGs with only zeros
+idx <- which(rowSums(abund) == 0)
+length(idx)
+abund <- abund[-idx,]
+df <- df[-idx,]
+taxa <- taxa[-idx,]
+dim(taxa)
+
+# subset happens here
+t <- taxa %>%
+  filter(Lifestyle != "incomplete") %>%
+  filter(taxa_elm != "SAR324") %>%
+  filter(Mean.Completeness > 85) %>%
+  filter(Mean.Contamination < 10) %>% pull(Genome)
+idx <- which(df$Genome %in% t)
+df.sub <- df[idx,]
+abund.sub <- abund[idx,]
+
+
+# some numbers
+taxa %>%
+  filter(Lifestyle != "incomplete") %>%
+  filter(Mean.Completeness > 85) %>%
+  filter(Mean.Contamination < 10) %>%
+  group_by(Lifestyle) %>% summarise(n = n()) %>%
+  pivot_wider(names_from = Lifestyle, values_from = n) %>% 
+  mutate(tot = assimilator+auxotroph) %>%
+  mutate(per.aux = auxotroph/tot)
+
+# look at the names of the pathways and check them; can also remove pathways here
+colnames(abund.sub)
+#subset
+#idx <- c(grep("DOS.Misc", colnames(abund.sub)), grep("Salvage", colnames(abund.sub)), grep("SO4thio",colnames(abund.sub)))#,
+         #grep("Sulfo",colnames(abund.sub)), grep("homocysteine",colnames(abund.sub)),grep("Glutathione",colnames(abund.sub)),grep("lactone",colnames(abund.sub)))
+#abund.sub.min <- abund.sub[,-idx]
+abund.sub.min <- abund.sub
+dim(abund.sub.min)
+colnames(abund.sub.min)
+# renaming the Miscellaneous DOS degradation pathways
+colnames(abund.sub.min)[which(colnames(abund.sub.min) == "DOS.Misc.Degradation.2")] <- "Sulfite.Export"
+colnames(abund.sub.min)[which(colnames(abund.sub.min) == "DOS.Misc.Degradation.3")] <- "Sulfite.Dehydrogenase"
+colnames(abund.sub.min)
+ 
+# # remove the incompletes from the table
+# abund.sub.min[abund.sub.min > 0 & abund.sub.min < 1] <- NA
+
+#run ISA
+cut.life <- df.sub$Lifestyle #grouping for ISA
+ind <- multipatt(abund.sub.min, cluster = cut.life, duleg = TRUE) 
+summary(ind)
+
+## Get the output for scores A and B
+tmpA <- data.frame(ind$A) %>% mutate(ind.vari = rownames(ind$A)) %>% pivot_longer(cols = 1:2) %>% mutate(score = "A")
+tmpB <- data.frame(ind$B) %>% mutate(ind.vari = rownames(ind$A)) %>% pivot_longer(cols = 1:2) %>% mutate(score = "B")
+
+n <- tmpA %>% filter(name == "auxotroph" & value > 0.5 |
+                     name == "assimilator" & value > 0.5) %>% pull(ind.vari)
+temp_indicatorgroup <- rbind(tmpA,tmpB) %>%
+  pivot_wider(names_from  = score, values_from = value) %>%
+  mutate(score = sqrt(A*B)) %>%
+  pivot_wider(names_from = name, values_from = c(A,B,score)) %>%
+  mutate(score_diff = (score_assimilator - score_auxotroph)) %>%
+  mutate(indicator.group = case_when(score_diff < -0.05 ~ "auxotroph", score_diff > 0.05 ~ "assimilator", TRUE ~ "common")) %>%
+  dplyr::select(ind.vari, A_auxotroph,B_auxotroph,A_assimilator,B_assimilator,indicator.group) %>% 
+  pivot_longer(cols = 2:5) %>%
+  mutate(score = case_when(name == "A_auxotroph" | name == "A_assimilator" ~ "A",
+                           name == "B_auxotroph" | name == "B_assimilator" ~ "B")) %>%
+  mutate(type = case_when(name == "A_auxotroph" | name == "B_auxotroph" ~ "auxotroph",
+                           name == "A_assimilator" | name == "B_assimilator" ~ "assimilator")) %>%
+  dplyr::select(-name) %>%
+  pivot_wider(names_from = score, values_from = value)
+tmpAB <- rbind(tmpA,tmpB) %>%
+  pivot_wider(names_from  = score, values_from = value) %>%
+  mutate(score = sqrt(A*B)) %>%
+  pivot_wider(names_from = name, values_from = c(A,B,score)) %>%
+  mutate(score_diff = (score_assimilator - score_auxotroph)) %>%
+  arrange(score_diff) %>% print(n=42)
+tmpAB <- gather(tmpAB[,c(1,6,7)], key = key, value = value, score_assimilator:score_auxotroph)
+write.csv(tmpAB, "/Users/michelle/Documents/DOSTraits/2025Results/IndicatorValues_2.csv",quote = F, col.names = T)
+write.csv(temp_indicatorgroup, "/Users/michelle/Documents/DOSTraits/2025Results/IndicatorGroups_2.csv",quote = F, col.names = T)
+getwd()
+
+# then we'll plot these results
+fd_IV <- read.csv("IndicatorValues_2.csv", row.names = 1)
+df_Indgroup <- read.csv("IndicatorGroups_2.csv", row.names = 1)[,1:2][duplicated(read.csv("IndicatorGroups_2.csv", row.names = 1)[,1:2]),]
+fd_IV$ind.vari[which(!(fd_IV$ind.vari %in% order))]
+order[which(!(order %in% fd_IV$ind.vari))]
+#None
+fd_IV <- merge(fd_IV, df_Indgroup, by = "ind.vari")
+fd_IV$value <- as.numeric(fd_IV$value)
+ggplot(fd_IV, aes(x = factor(ind.vari, order), y = value, shape = key, color = indicator.group)) + 
+  geom_point(size = 4) +
+  scale_color_manual(values = c('#2F397A','#415521','#A88205')) +
+  ylim(0,1) + theme_linedraw()+theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  theme(plot.margin = unit(c(0,0,0,2), "cm")) 
+ggsave(plot = last_plot(), file = "fig4Varations/fig4_d3.pdf", unit = "in", height = 5, width = 20) 
+```
+
+### Make the supplemental figure that relates to Figure 4
+```{r}
+rbind(tmpA,tmpB) %>%
+  pivot_wider(names_from  = score, values_from = value) %>%
+  mutate(score = sqrt(A*B)) %>%
+  pivot_wider(names_from = name, values_from = c(A,B,score)) %>%
+  mutate(score_diff = (score_assimilator - score_auxotroph)) %>%
+  mutate(indicator.group = case_when(score_diff < -0.05 ~ "auxotroph", score_diff > 0.05 ~ "assimilator", TRUE ~ "common")) %>%
+  dplyr::select(ind.vari, A_auxotroph,B_auxotroph,A_assimilator,B_assimilator,indicator.group) %>% 
+  pivot_longer(cols = 2:5) %>%
+  mutate(score = case_when(name == "A_auxotroph" | name == "A_assimilator" ~ "A",
+                           name == "B_auxotroph" | name == "B_assimilator" ~ "B")) %>%
+  mutate(type = case_when(name == "A_auxotroph" | name == "B_auxotroph" ~ "auxotroph",
+                           name == "A_assimilator" | name == "B_assimilator" ~ "assimilator")) %>%
+  dplyr::select(-name) %>%
+  pivot_wider(names_from = score, values_from = value) %>% 
+  ggplot(aes(x = A, y = B, shape = type, color = indicator.group))+
+  geom_hline(yintercept = 0.5)+
+  geom_vline(xintercept = 0.5)+
+  geom_point(size = 3)+
+  geom_line(aes(group=ind.vari))+
+  scale_color_manual(values = c('#2F397A','#415521','#A88205'))+
+  p.theme+
+  xlab('A score -> Specificity')+
+  ylab('B score -> Fidelity') 
+ggsave(plot = last_plot(), file = "/Users/michelle/Documents/DOSTraits/2025Results/fig4Varations/fig4_2.pdf", unit = "in", height = 7, width = 7) 
+
+rbind(tmpA,tmpB) %>%
+  pivot_wider(names_from  = score, values_from = value) %>%
+  mutate(score = sqrt(A*B)) %>%
+  pivot_wider(names_from = name, values_from = c(A,B,score)) %>%
+  mutate(score_diff = (score_assimilator - score_auxotroph)) %>%
+  mutate(indicator.group = case_when(score_diff < -0.05 ~ "auxotroph", score_diff > 0.05 ~ "assimilator", TRUE ~ "common")) %>%
+  dplyr::select(ind.vari, A_auxotroph,B_auxotroph,A_assimilator,B_assimilator,indicator.group) %>% 
+  pivot_longer(cols = 2:5) %>%
+  mutate(score = case_when(name == "A_auxotroph" | name == "A_assimilator" ~ "A",
+                           name == "B_auxotroph" | name == "B_assimilator" ~ "B")) %>%
+  mutate(type = case_when(name == "A_auxotroph" | name == "B_auxotroph" ~ "auxotroph",
+                           name == "A_assimilator" | name == "B_assimilator" ~ "assimilator")) %>%
+  dplyr::select(-name) %>%
+  pivot_wider(names_from = score, values_from = value) %>% 
+  ggplot(aes(x = A, y = B, shape = type, color = indicator.group, label = ind.vari))+
+  geom_hline(yintercept = 0.5)+
+  geom_vline(xintercept = 0.5)+
+  geom_point(size = 3)+
+  geom_line(aes(group=ind.vari))+
+  scale_color_manual(values = c('#2F397A','#415521','#A88205'))+
+  p.theme+
+  xlab('A score -> Specificity')+
+  ylab('B score -> Fidelity') +
+  geom_text_repel(color = "black", size = 2, box.padding = 0.5, min.segment.length = 0) +
+  geom_rect(aes(xmin = .47, xmax = .53, ymin = .82, ymax = 1.005),
+                 fill = "white", alpha = 0, color = "black" )
+ggsave(plot = last_plot(), file = "/Users/michelle/Documents/DOSTraits/2025Results/fig4Varations/fig4_2a.pdf", unit = "in", height = 11, width = 11) 
+
+rbind(tmpA,tmpB) %>%
+  pivot_wider(names_from  = score, values_from = value) %>%
+  mutate(score = sqrt(A*B)) %>%
+  pivot_wider(names_from = name, values_from = c(A,B,score)) %>%
+  mutate(score_diff = (score_assimilator - score_auxotroph)) %>%
+  mutate(indicator.group = case_when(score_diff < -0.05 ~ "auxotroph", score_diff > 0.05 ~ "assimilator", TRUE ~ "common")) %>%
+  dplyr::select(ind.vari, A_auxotroph,B_auxotroph,A_assimilator,B_assimilator,indicator.group) %>% 
+  pivot_longer(cols = 2:5) %>%
+  mutate(score = case_when(name == "A_auxotroph" | name == "A_assimilator" ~ "A",
+                           name == "B_auxotroph" | name == "B_assimilator" ~ "B")) %>%
+  mutate(type = case_when(name == "A_auxotroph" | name == "B_auxotroph" ~ "auxotroph",
+                           name == "A_assimilator" | name == "B_assimilator" ~ "assimilator")) %>%
+  dplyr::select(-name) %>%
+  pivot_wider(names_from = score, values_from = value) %>% 
+  ggplot(aes(x = A, y = B, shape = type, color = indicator.group, label = ind.vari)) +
+  geom_hline(yintercept = 0.5)+
+  geom_vline(xintercept = 0.5)+
+  geom_point(size = 2)+
+  geom_line(aes(group=ind.vari))+
+  scale_color_manual(values = c('#2F397A','#415521','#A88205'))+
+  p.theme+
+  xlab('A score -> Specificity')+
+  ylab('B score -> Fidelity')+
+  geom_text_repel(color = "black", size = 2, box.padding = 0.5, min.segment.length = 0) +
+  xlim(.475,.525)+ylim(.825,1)
+ggsave(plot = last_plot(), file = "/Users/michelle/Documents/DOSTraits/2025Results/fig4Varations/fig4_2b.pdf", unit = "in", height = 5, width = 4) 
+```
+Make the same figure, but with the data that maintains the incompletes in the ISA.
+```{r}
+rbind(tmpA,tmpB) %>%
+  pivot_wider(names_from  = score, values_from = value) %>%
+  mutate(score = sqrt(A*B)) %>%
+  pivot_wider(names_from = name, values_from = c(A,B,score)) %>%
+  mutate(score_diff = (score_assimilator - score_auxotroph)) %>%
+  mutate(indicator.group = case_when(score_diff < -0.05 ~ "auxotroph", score_diff > 0.05 ~ "assimilator", TRUE ~ "common")) %>%
+  dplyr::select(ind.vari, A_auxotroph,B_auxotroph,A_assimilator,B_assimilator,indicator.group) %>% 
+  pivot_longer(cols = 2:5) %>%
+  mutate(score = case_when(name == "A_auxotroph" | name == "A_assimilator" ~ "A",
+                           name == "B_auxotroph" | name == "B_assimilator" ~ "B")) %>%
+  mutate(type = case_when(name == "A_auxotroph" | name == "B_auxotroph" ~ "auxotroph",
+                           name == "A_assimilator" | name == "B_assimilator" ~ "assimilator")) %>%
+  dplyr::select(-name) %>%
+  pivot_wider(names_from = score, values_from = value) %>% 
+  ggplot(aes(x = A, y = B, shape = type, color = indicator.group))+
+  geom_hline(yintercept = 0.5)+
+  geom_vline(xintercept = 0.5)+
+  geom_point(size = 3)+
+  geom_line(aes(group=ind.vari))+
+  scale_color_manual(values = c('#2F397A','#415521','#A88205'))+
+  p.theme+
+  xlab('A score -> Specificity')+
+  ylab('B score -> Fidelity') 
+ggsave(plot = last_plot(), file = "/Users/michelle/Documents/DOSTraits/2025Results/fig4Varations/fig4_3.pdf", unit = "in", height = 7, width = 7) 
+
+rbind(tmpA,tmpB) %>%
+  pivot_wider(names_from  = score, values_from = value) %>%
+  mutate(score = sqrt(A*B)) %>%
+  pivot_wider(names_from = name, values_from = c(A,B,score)) %>%
+  mutate(score_diff = (score_assimilator - score_auxotroph)) %>%
+  mutate(indicator.group = case_when(score_diff < -0.05 ~ "auxotroph", score_diff > 0.05 ~ "assimilator", TRUE ~ "common")) %>%
+  dplyr::select(ind.vari, A_auxotroph,B_auxotroph,A_assimilator,B_assimilator,indicator.group) %>% 
+  pivot_longer(cols = 2:5) %>%
+  mutate(score = case_when(name == "A_auxotroph" | name == "A_assimilator" ~ "A",
+                           name == "B_auxotroph" | name == "B_assimilator" ~ "B")) %>%
+  mutate(type = case_when(name == "A_auxotroph" | name == "B_auxotroph" ~ "auxotroph",
+                           name == "A_assimilator" | name == "B_assimilator" ~ "assimilator")) %>%
+  dplyr::select(-name) %>%
+  pivot_wider(names_from = score, values_from = value) %>% 
+  ggplot(aes(x = A, y = B, shape = type, color = indicator.group, label = ind.vari))+
+  geom_hline(yintercept = 0.5)+
+  geom_vline(xintercept = 0.5)+
+  geom_point(size = 3)+
+  geom_line(aes(group=ind.vari))+
+  scale_color_manual(values = c('#2F397A','#415521','#A88205'))+
+  p.theme+
+  xlab('A score -> Specificity')+
+  ylab('B score -> Fidelity') +
+  geom_text_repel(color = "black", size = 2, box.padding = 0.5, min.segment.length = 0) +
+  geom_rect(aes(xmin = .455, xmax = .545, ymin = .82, ymax = 1.005),
+                 fill = "white", alpha = 0, color = "black" )
+ggsave(plot = last_plot(), file = "/Users/michelle/Documents/DOSTraits/2025Results/fig4Varations/fig4_3a.pdf", unit = "in", height = 11, width = 11) 
+
+rbind(tmpA,tmpB) %>%
+  pivot_wider(names_from  = score, values_from = value) %>%
+  mutate(score = sqrt(A*B)) %>%
+  pivot_wider(names_from = name, values_from = c(A,B,score)) %>%
+  mutate(score_diff = (score_assimilator - score_auxotroph)) %>%
+  mutate(indicator.group = case_when(score_diff < -0.05 ~ "auxotroph", score_diff > 0.05 ~ "assimilator", TRUE ~ "common")) %>%
+  dplyr::select(ind.vari, A_auxotroph,B_auxotroph,A_assimilator,B_assimilator,indicator.group) %>% 
+  pivot_longer(cols = 2:5) %>%
+  mutate(score = case_when(name == "A_auxotroph" | name == "A_assimilator" ~ "A",
+                           name == "B_auxotroph" | name == "B_assimilator" ~ "B")) %>%
+  mutate(type = case_when(name == "A_auxotroph" | name == "B_auxotroph" ~ "auxotroph",
+                           name == "A_assimilator" | name == "B_assimilator" ~ "assimilator")) %>%
+  dplyr::select(-name) %>%
+  pivot_wider(names_from = score, values_from = value) %>% 
+  ggplot(aes(x = A, y = B, shape = type, color = indicator.group, label = ind.vari)) +
+  geom_hline(yintercept = 0.5)+
+  geom_vline(xintercept = 0.5)+
+  geom_point(size = 2)+
+  geom_line(aes(group=ind.vari))+
+  scale_color_manual(values = c('#2F397A','#415521','#A88205'))+
+  p.theme+
+  xlab('A score -> Specificity')+
+  ylab('B score -> Fidelity')+
+  geom_text_repel(color = "black", size = 2, box.padding = 0.5, min.segment.length = 0) +
+  xlim(.46,.54)+ylim(.825,1)
+ggsave(plot = last_plot(), file = "/Users/michelle/Documents/DOSTraits/2025Results/fig4Varations/fig4_3b.pdf", unit = "in", height = 5, width = 4) 
+```
+
+
+# Figure 5
+## Getting the sequences
+First, we need to take the 16s file that the group shared with us and correlate the sequence names to the genome names.
+```{r}
+# load the 16s sequence file
+fasta_16s_file <- seqinr::read.fasta(file = "../../../DOSTraits/go_microbiomics-integrated-cpl50_ctn10-16S.fasta", seqtype = "DNA",as.string = TRUE, set.attributes = FALSE)
+names(fasta_16s_file) <- gsub(names(fasta_16s_file), pattern = "gene_.*", replacement = "")
+# load the scaffold membership file
+table <- read.table("../../../DOSTraits/genomes-scaffolds-membership.tsv", sep = "\t")
+table$V1 <- paste0(table$V1, "-")
+
+# correlate the sequences with the correct genomes
+head(names(fasta_16s_file))
+head(match(names(fasta_16s_file),table$V1))
+names(fasta_16s_file) <- table$V2[match(names(fasta_16s_file),table$V1)]
+
+# eliminate duplicates?
+length(which(!duplicated(names(fasta_16s_file))==TRUE))
+fasta_16s_file <- fasta_16s_file[!duplicated(names(fasta_16s_file))]
+
+#resave the file with just our genomes in it
+our_genomes <- read.csv("../new_filtered_SA/2024_June19_ERIN_SulfateAssimilationprocessed_above75genomecompletion.csv")
+all(names(fasta_16s_file) %in% our_genomes$Genome)
+#FALSE
+fasta_16s_file <- fasta_16s_file[which(names(fasta_16s_file) %in% our_genomes)]
+write.fasta(sequences = fasta_16s_file, names = names(fasta_16s_file), nbchar = 80, file.out = "../../../DOSTraits/go_microbiomics-16S.fasta")
+
+```
+
+## Visualizing the Tree
+```{r}
+df2 <- merge(df1, names_id_filtered)
+tree1 <- read.tree("2025Results/16s_newick_tree_4")
+p7 <- ggtree(tree1, layout = "fan", open.angle=15, size =0.1) + geom_tiplab(size = 0)
+df3 <- as.data.frame(df2[,2:39])
+row.names(df3) <- df2$Genome
+df4 <- subset.data.frame(df3, select = "Lifestyle")
+df5 <- subset.data.frame(df3, select = "taxa_elm")
+df6 <- our_genomes
+row.names(df6) <- df6$Genome
+df6 <- subset.data.frame(df6, select = "Mean.Completeness")
+df3 <- subset.data.frame(df3, select = -c(Lifestyle, taxa_elm))
+df3 <- df3[,match(order, names(df3))]
+length(get_taxa_name(p7))
+
+write.csv(df3, "2025Results/fig5_annotation_pathways.csv", quote = F, row.names = T)
+write.csv(df4, "2025Results/fig5_annotation_lifestyles.csv", quote = F, row.names = T)
+write.csv(df5, "2025Results/fig5_annotation_taxa.csv", quote = F, row.names = T)
+write.csv(df6, "2025Results/fig5_annotation_genomecompletion.csv", quote = F, row.names = T)
+
+# colors to taxa names
+cbind(tcols, unique(df5$taxa_elm)[order(unique(df5$taxa_elm))])
+
+# plot the tree
+gheatmap(p7, df3, offset=0.2, width=0.6, 
+         colnames=TRUE, hjust = 1, legend_title="Present or Absent", colnames_angle = 90, colnames_offset_y = 40) + scale_fill_gradient(low = "white", high = "black")
+ggsave(plot = last_plot(), file = "2025Results/fig5_a.pdf", unit = "in", height = 30, width = 30) 
+gheatmap(p7, df4, offset=0.2, width=0.6, 
+         colnames=TRUE, colnames_offset_x = 0, legend_title="Lifestyle", colnames_angle = 90, colnames_offset_y = 40) + scale_fill_manual(values = c("#0016a6", "#629e02", "#0271a8"))
+ggsave(plot = last_plot(), file = "2025Results/fig5_b.pdf", unit = "in", height = 30, width = 30) 
+gheatmap(p7, df5, offset=0.2, width=0.6, 
+         colnames=TRUE, legend_title="Taxa", colnames_angle = 90, colnames_offset_y = 40)
+ggsave(plot = last_plot(), file = "2025Results/fig5_c.pdf", unit = "in", height = 30, width = 30) 
+
+p1 <- gheatmap(p7, df3, offset=0.2, width=0.6, 
+         colnames=TRUE, hjust = 1, legend_title="Present or Absent", colnames_angle = 90, colnames_offset_y = 40) + scale_fill_gradient(low = "white", high = "black")
+p2 <- p1 + new_scale_fill()
+p2 <- gheatmap(p2, df4, offset=3, width=0.6, 
+         colnames=TRUE, colnames_offset_x = 0, legend_title="Lifestyle", colnames_angle = 90, colnames_offset_y = 40) + scale_fill_manual(values = c("#0016a6", "#629e02", "#0271a8"))
+p3 <- p2 + new_scale_fill()
+gheatmap(p3, df5, offset=5, width=0.6, 
+         colnames=TRUE, legend_title="Taxa", colnames_angle = 90, colnames_offset_y = 40)
+ggsave(plot = last_plot(), file = "2025Results/fig5_d.pdf", unit = "in", height = 40, width = 40) 
+
+p1 <- gheatmap(p7, df5, offset=0.2, width=0.02, 
+               colnames=TRUE,colnames_offset_x = 0, hjust = 1, legend_title="Taxa", colnames_angle = 90, colnames_offset_y = 0) + scale_fill_manual(values = tcols)
+p2 <- p1 + new_scale_fill()
+p2 <- gheatmap(p2, df4, offset=0.3, width=0.02, 
+               colnames=TRUE, colnames_offset_x = 0, hjust = 1,legend_title="Lifestyle", colnames_angle = 90, colnames_offset_y = 0) + scale_fill_manual(values = c("#0016a6", "#629e02", "#0271a8"))
+p3 <- p2 + new_scale_fill()
+gheatmap(p3, df3, offset=.4, width=0.82, 
+         colnames=TRUE,colnames_offset_x = 0,hjust = 1, legend_title="Present or Absent", colnames_angle = 90, colnames_offset_y = 0) + scale_fill_gradient(low = "white", high = "black")
+ggsave(plot = last_plot(), file = "2025Results/fig5_e.pdf", unit = "in", height = 40, width = 40) 
+
+```
+
+## A prettier round tree
+```{r}
+#round
+p1 <- gheatmap(p7, df5, offset=0.2, width=0.02, 
+               colnames=TRUE,colnames_offset_x = 0, color = NA,
+               hjust = 1, legend_title="Taxa", colnames_angle = 90, 
+               colnames_offset_y = 0) + scale_fill_manual(values = tcols)
+p2 <- p1 + new_scale_fill()
+p2 <- gheatmap(p2, df4, offset=0.31, width=0.02, 
+               colnames=TRUE, colnames_offset_x = 0, color = NA,
+               hjust = 1,legend_title="Lifestyle", colnames_angle = 90, 
+               colnames_offset_y = 0) + 
+  scale_fill_manual(values = c("#0016a6", "#629e02", "#0271a8"))
+p3 <- p2 + new_scale_fill()
+p3 <- gheatmap(p3, df6, offset=0.42, width=0.02, 
+               colnames=TRUE, colnames_offset_x = 0, color = NA,
+               hjust = 1,legend_title="Genome Completion", colnames_angle = 90, 
+               colnames_offset_y = 0) + scale_fill_viridis(direction = -1, option = "A")
+p4 <- p3 + new_scale_fill()
+gheatmap(p4, df3, offset=.53, width=0.82, 
+         colnames=TRUE,colnames_offset_x = 0, color = NA,
+         hjust = 1, legend_title="Present or Absent", colnames_angle = 90, 
+         colnames_offset_y = 0) + 
+  scale_fill_gradient(low = "white", high = "black")
+ggsave(plot = last_plot(), file = "2025Results/fig5_f.pdf", unit = "in", height = 40, width = 40) 
+gheatmap(p4, df3, offset=.53, width=0.82, 
+         colnames=TRUE,colnames_offset_x = 0, color = NA,
+         hjust = 1, legend_title="Present or Absent", colnames_angle = 90, 
+         colnames_offset_y = 0) + 
+  scale_fill_gradient(low = "white", high = "#A88205")
+ggsave(plot = last_plot(), file = "2025Results/fig5_f_ochre.pdf", unit = "in", height = 40, width = 40) 
+gheatmap(p4, df3, offset=.53, width=0.82, 
+         colnames=TRUE,colnames_offset_x = 0, color = NA,
+         hjust = 1, legend_title="Present or Absent", colnames_angle = 90, 
+         colnames_offset_y = 0) + 
+  scale_fill_gradient(low = "white", high = "#2F397A")
+ggsave(plot = last_plot(), file = "2025Results/fig5_f_blue.pdf", unit = "in", height = 40, width = 40) 
+gheatmap(p4, df3, offset=.53, width=0.82, 
+         colnames=TRUE,colnames_offset_x = 0, color = NA,
+         hjust = 1, legend_title="Present or Absent", colnames_angle = 90, 
+         colnames_offset_y = 0) + 
+  scale_fill_gradient(low = "white", high = "#415521")
+ggsave(plot = last_plot(), file = "2025Results/fig5_f_green.pdf", unit = "in", height = 40, width = 40) 
+
+```
+
+## A prettier rectangular tree
+```{r}
+#rectangular
+p8 <- ggtree(tree1, size =0.1) + geom_tiplab(size = 0) + xlim(0,10) + ylim(-1,4460)
+p1 <- gheatmap(p8, df5, offset=0.2, width=0.02, 
+               colnames=TRUE,colnames_offset_x = 0, color = NA,
+               hjust = 1, legend_title="Taxa", colnames_angle = 90, 
+               colnames_offset_y = 0) + scale_fill_manual(values = tcols)
+p2 <- p1 + new_scale_fill()
+p2 <- gheatmap(p2, df4, offset=0.31, width=0.02, 
+               colnames=TRUE, colnames_offset_x = 0, color = NA,
+               hjust = 1,legend_title="Lifestyle", colnames_angle = 90, 
+               colnames_offset_y = 0) + 
+  scale_fill_manual(values = c("#0016a6", "#629e02", "#0271a8"))
+p3 <- p2 + new_scale_fill()
+p3 <- gheatmap(p3, df6, offset=0.42, width=0.02, 
+               colnames=TRUE, colnames_offset_x = 0, color = NA,
+               hjust = 1,legend_title="Genome Completion", colnames_angle = 90, 
+               colnames_offset_y = 0) + scale_fill_viridis(direction = -1, option = "A")
+p4 <- p3 + new_scale_fill()
+gheatmap(p4, df3, offset=.53, width=0.82, 
+         colnames=TRUE,colnames_offset_x = 0, color = NA,
+         hjust = 1, legend_title="Present or Absent", colnames_angle = 90, 
+         colnames_offset_y = 0) + 
+  scale_fill_gradient(low = "white", high = "black")
+ggsave(plot = last_plot(), file = "2025Results/fig5_g.pdf", unit = "in", height = 60, width = 30, limitsize = FALSE) 
+gheatmap(p4, df3, offset=.53, width=0.82, 
+         colnames=TRUE,colnames_offset_x = 0, color = NA,
+         hjust = 1, legend_title="Present or Absent", colnames_angle = 90, 
+         colnames_offset_y = 0) + 
+  scale_fill_gradient(low = "white", high = "#A88205")
+ggsave(plot = last_plot(), file = "2025Results/fig5_g_ochre.pdf", unit = "in", height = 40, width = 40) 
+gheatmap(p4, df3, offset=.53, width=0.82, 
+         colnames=TRUE,colnames_offset_x = 0, color = NA,
+         hjust = 1, legend_title="Present or Absent", colnames_angle = 90, 
+         colnames_offset_y = 0) + 
+  scale_fill_gradient(low = "white", high = "#2F397A")
+ggsave(plot = last_plot(), file = "2025Results/fig5_g_blue.pdf", unit = "in", height = 40, width = 40) 
+gheatmap(p4, df3, offset=.53, width=0.82, 
+         colnames=TRUE,colnames_offset_x = 0, color = NA,
+         hjust = 1, legend_title="Present or Absent", colnames_angle = 90, 
+         colnames_offset_y = 0) + 
+  scale_fill_gradient(low = "white", high = "#415521")
+ggsave(plot = last_plot(), file = "2025Results/fig5_g_green.pdf", unit = "in", height = 40, width = 40) 
+
+```
+# Supplemental Figures
+## Methionine Salvage
+```{r}
+# need to import the processed data for part 1 (MSP1), part 2 (MSP2), fusion enzyme (MSFE), anaerobic isoprenoid shunt (MSIS), anaerobic degradation (MSAD) 
+MSP1 <- read.csv("kofam_results/Methionine Salvage Part 1processed_above75genomecompletion.csv", row.names = 1)
+MSP2 <- read.csv("kofam_results/Methionine Salvage Part 2processed_above75genomecompletion.csv", row.names = 1)
+MSFE <- read.csv("kofam_results/Methionine Salvage Fusion Enzymeprocessed_above75genomecompletion.csv", row.names = 1)
+MSIS <- read.csv("kofam_results/Methionine Salvage Anaerobic Isoprenoid Shuntprocessed_above75genomecompletion.csv", row.names = 1)
+MSAD <- read.csv("kofam_results/Methionine Salvage Anaerobic Degradation of MTRu1Pprocessed_above75genomecompletion.csv", row.names = 1)
+names(MSP1)[1:7] <- paste0("MSP1:", names(MSP1)[1:7])
+names(MSP2)[1:6] <- paste0("MSP2:", names(MSP2)[1:6])
+names(MSFE)[1:2] <- paste0("MSFE:", names(MSFE)[1:2])
+names(MSIS)[1:3] <- paste0("MSIS:", names(MSIS)[1:3])
+names(MSAD)[1] <- paste0("MSAD:", names(MSAD)[1])
+# bind the steps together
+MS <- merge(MSP1[1:7],MSP2[1:6],by=0)
+MS <- merge(MS,MSFE[1:2], by.x = "Row.names", by.y=0)
+MS <- merge(MS,MSIS[1:3], by.x = "Row.names", by.y=0)
+MS <- merge(MS,MSAD[c(1,4,5,6)], by.x = "Row.names", by.y=0)
+# pull the genomes of interest
+# alteromonas mac: MARD_SAMN10134660_REFG_MMP10134660
+MS_alt <- MS[which(MS$Row.names == "MARD_SAMN10134660_REFG_MMP10134660"),]
+MS_alt <- MS_alt[,2:20]
+# SAR11: GORG_SAMEA6069913_SAGS_AG893F11
+MS_sar11 <- MS[which(MS$Row.names == "GORG_SAMEA6069913_SAGS_AG893F11"),]
+MS_sar11 <- MS_sar11[,2:20]
+# ruegaria: MARD_SAMN05444358_REFG_MMP05444358
+MS_ruegaria <- MS[which(MS$Row.names == "MARD_SAMN05444358_REFG_MMP05444358"),]
+MS_ruegaria <- MS_ruegaria[,2:20]
+# get averages
+# ref genomes
+MS_refg_means <- colMeans(MS[grep("REFG", MS$Row.names), 2:20])
+# all
+MS_allmeans <- colMeans(MS[,2:20])
+# bind the set together to make the heatmap, keeping the order as is
+order_MSsteps <- names(MS[2:20])
+MS_summary <- rbind(MS_allmeans,MS_refg_means,MS_alt,MS_sar11,MS_ruegaria)
+MS_names <- c("allmeans","refg_means","alt","sar11","ruegaria")
+MS_summary <- cbind(MS_names, MS_summary)
+MS_summary <- gather(MS_summary, key = "step", value = "value", 'MSP1:Step1':'MSAD:Step1')
+MS_summary$MS_names <- as.factor(MS_summary$MS_names)
+MS_summary$step <- as.factor(MS_summary$step)
+ggplot(MS_summary, aes(x = factor(MS_names, levels = c("allmeans","refg_means","alt","sar11","ruegaria")), y = factor(step, levels = order_MSsteps), fill = value)) + 
+  geom_tile() + scale_y_discrete(limits=rev) +
+  scale_fill_viridis(option = "A")
+ggsave(plot = last_plot(), file = "2025Results/metsal/heatmap_v1.pdf", unit = "in", height = 5, width = 5)   
+
+```
+
