@@ -32,7 +32,8 @@ values3 <- c("#2F397A","#415521","#5A8093")
 values6 <- c("#2F397A", "#415521", "#5A8093", "#9399bd", "#9fb6c2", "#c0d998")
 values9 <- c( "#dce0fa","#868DBA","#2F397A", "#d0eaf7","#95B5C5","#5A8093","#ebf7d7", "#96A67C" ,"#415521")
 tcols <- c("#d3004b","#8b373f","#ff4f60","#ac6863","#b80020","#fdb5a0","#cb6300","#e7c087","#f2b707","#cbcd29","#475907","#8ab200","#95d86c","#008014","#44c442","#01e1a1","#00956e","#009083","#0085e8","#0270f9","#aa79ff","#7431a2","#eb8dff","#ffa8f2","#ff7be8","#ff8bd9","#c30099","#7e486b","#962166","#ffa1c0")
-names(tcols) <- sort(unique(df$taxa_elm))
+df <- read.csv("genome_summary_ELM_2.csv")
+names(tcols) <- sort(unique(df$taxa_elm)[1:30])
 ```
 # Genomes
 Import all of our files and get the right number of genomes in these files.
@@ -238,7 +239,7 @@ This version of figure 3 uses S proteome content that is older, before we though
 
 ```{r}
 data <- read.csv("20250816_protein.filt.sum.csv", row.names = 1)
-s_content_df <- merge(x = our_genomes[,c(2,20,23)], y = data, by.x = "Genome", by.y = "genome")
+s_content_df <- merge(x = our_genomes[,c(1,22)], y = data, by.x = "Genome", by.y = "genome")
 ggplot(s_content_df, aes(x = factor(Lifestyle, levels = c("assimilator", "incomplete", "auxotroph")), y = perTot.mu.wt)) + 
   geom_violin(aes(color = factor(Lifestyle))) +theme_light()+ geom_boxplot(width=0.1, color="grey", alpha=0.2) +
   scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
@@ -730,7 +731,7 @@ s_content_df <- merge(x = our_genomes[,c(1,20,22)], y = data[,-c(2)], by.x = "Ge
 s_content_df$Lifestyle <- factor(s_content_df$Lifestyle, levels = c("assimilator","incomplete","auxotroph"))
 s_content_df %>% group_by(Lifestyle) %>% summarise(mean_Scontent = mean(avgS))
 ```
-We will probably only use the parametric tests, which are the plots in this chunk. Robust tests and supplemental figures are later.
+We will probably only use the non-parametric tests, which are the plots in this chunk. Robust tests and supplemental figures are later.
 ```{r}
 ggplot(s_content_df, aes(x = factor(Lifestyle, levels = c("assimilator", "incomplete", "auxotroph")), y = avgS)) + 
   geom_violin(aes(color = factor(Lifestyle))) +theme_light()+ geom_boxplot(width=0.1, color="grey", alpha=0.2) +
@@ -741,6 +742,7 @@ plt <- ggbetweenstats(
   data = s_content_df,
   x = Lifestyle,
   y = avgS, digits = 3,
+  type = "np",
   point.dodge.width = 0.8)
 plt + labs(
   x = "Lifestyle", 
@@ -752,6 +754,7 @@ plt <- ggbetweenstats(
   data = s_content_df,
   x = Lifestyle,
   y = avgS, digits = 5,
+  type = "np",
   point.dodge.width = 0.8)
 plt + labs(
   x = "Lifestyle", 
@@ -766,6 +769,7 @@ plt <- ggbetweenstats(
   data = s_content_df_temp,
   x = Lifestyle,
   y = avgS, digits = 3,
+  type = "np",
   point.dodge.width = 0.8)
 plt + labs(
   x = "Lifestyle",
@@ -778,6 +782,7 @@ plt <- ggbetweenstats(
   data = s_content_df_temp,
   x = Lifestyle,
   y = avgS, digits = 3,
+  type = "np",
   point.dodge.width = 0.8)
 plt + labs(
   x = "Lifestyle",
@@ -791,6 +796,7 @@ plt <- ggbetweenstats(
   data = s_content_df_temp,
   x = Lifestyle,
   y = avgS, digits = 3,
+  type = "np",
   point.dodge.width = 0.8)
 plt + labs(
   x = "Lifestyle",
@@ -849,7 +855,7 @@ plt + labs(
 ) + scale_colour_manual(values = c(values3[1], values3[3], values3[2]))
 ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3a_4_onlyrefs_robust.pdf", unit = "in", height = 7, width = 10) 
 ```
-Let's make a new panel A without any incompletes.
+Let's make a new panel A without any incompletes, for PriME Meeting Poster in October of 2025.
 ```{r}
 data <- read.csv("20250905_protein.filt.sum.csv", row.names = 1)
 our_genomes <- read.csv("new_filtered_SA/2024_June19_ERIN_SulfateAssimilationprocessed_above75genomecompletion.csv", row.names = 1)
@@ -859,6 +865,7 @@ plt <- s_content_df %>% filter(Lifestyle != "incomplete") %>%
   ggbetweenstats(
   x = Lifestyle,
   y = avgS, digits = 4,
+  type = "np",
   point.dodge.width = 0.8)
 
 plt + labs(
@@ -866,11 +873,10 @@ plt + labs(
   title = "Distribution of S Proteome Content across S Lifestyles"
 ) + scale_colour_manual(values = c(values3[1], values3[2])) + theme(plot.title = element_text(size = 12, face = "plain", hjust = 0.5), plot.subtitle = element_blank(), axis.title.x = element_text(face = "plain"), axis.title.y = element_text(face = "plain"), plot.caption = element_blank()) + labs(title = "A. Distribution of S Content Across Lifestyle") + ylab("Average Sulfur Content of Proteome") + xlab("Lifestyle") + scale_x_discrete(labels = c("Sulfate Assimilator\n(n = 3,189)", "Putative Auxotroph\n(n = 5,339)"))
 
-
 ```
-
 ## Panel B
-The last plot in this set of plots is the one that has all taxa, with free scale, that we would want to use in supplemental and in the main paper when subsetting the taxa to ones we want to talk about in the paper.
+### Drafting Panel B
+First, we'll play with plotting this data by taxa.
 ```{r}
 s_content_df$taxa_elm <- as.factor(s_content_df$taxa_elm)
 s_content_df$Lifestyle <- as.factor(s_content_df$Lifestyle)
@@ -910,16 +916,6 @@ for (taxa in unique(s_content_df$taxa_elm)){
   s_content_df %>% filter(taxa_elm == taxa) %>% ggplot(aes(x = avgS, fill = Lifestyle)) + geom_histogram(alpha=0.6,position = 'identity') + facet_wrap(~Lifestyle)
   ggsave(plot = last_plot(), file = paste0("2025Results/newProteinFilter_09052025/fig3b_",taxa,".pdf"), unit = "in", height = 5, width = 10) 
 }
-
-s_content_df %>% 
-  ggplot(aes(x = avgS, fill = Lifestyle)) + 
-  geom_histogram(alpha=0.6, position = 'identity') + facet_wrap(taxa_elm~., ncol = 5, scales = "free_y") + scale_fill_manual(values = values3)  + theme_minimal()
-ggsave(plot = last_plot(), file = paste0("2025Results/newProteinFilter_09052025/fig3b_v2.pdf"), unit = "in", height = 12, width = 10) 
-s_content_df %>% 
-  ggplot(aes(x = avgS, fill = Lifestyle)) + 
-  geom_histogram(alpha=0.6, position = 'identity') + facet_wrap(taxa_elm~., ncol = 1, scales = "free_y") + scale_fill_manual(values = values3)  + theme_minimal()
-ggsave(plot = last_plot(), file = paste0("2025Results/newProteinFilter_09052025/fig3b_v3.pdf"), unit = "in", height = 12, width = 20) 
-
 ```
 ### S auxoptrophs : oligotrophs and copiotrophs
 ```{r}
@@ -951,8 +947,72 @@ ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3b_3
 ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3b_4_Sauxotrophs.pdf", unit = "in", height = 10, width = 10) 
 
 ```
+### Finalizing Panel B
+Then, we'll plot the data how it would be included in the paper. Here are all of the taxa:
+```{r}
+# first, get the order of the taxa based on their mean S content
+taxa_s_content_summary <- s_content_df %>% 
+  group_by(taxa_elm) %>% 
+  summarise(mean_s = mean(avgS)) %>%
+  arrange(., mean_s)
+s_content_df$taxa_elm <- factor(s_content_df$taxa_elm, levels = taxa_s_content_summary$taxa_elm)
+s_content_df %>% 
+  ggplot(aes(x = avgS, fill = Lifestyle)) + 
+  geom_histogram(alpha=0.6, position = 'identity') + facet_wrap(taxa_elm~., ncol = 5, scales = "free_y") + scale_fill_manual(values = c("#0016a6", "#0271a8", "#497502"))  + theme_minimal()
+ggsave(plot = last_plot(), file = paste0("2025Results/newProteinFilter_09052025/fig3b_v2.pdf"), unit = "in", height = 12, width = 10) 
+
+s_content_df %>% 
+  ggplot(aes(x = avgS)) + 
+  geom_histogram(aes(y = ..count.., fill = Lifestyle), alpha=0.6, position = 'identity', binwidth = 0.0005) +
+  facet_wrap(taxa_elm~., ncol = 2, scales = "free_y", strip.position="right") + scale_fill_manual(values = c("#0016a6", "#0271a8", "#497502")) + scale_color_manual(values = c("#0016a6", "#0271a8", "#497502")) + theme_minimal() + theme(panel.grid.minor = element_blank(), panel.spacing = unit(0, "lines"), strip.text.y = element_text(angle = 0)) + scale_x_continuous(expand = expansion(mult = c(0.01,0.01))) + scale_y_continuous(n.breaks = 3) 
+ggsave(plot = last_plot(), file = paste0("2025Results/newProteinFilter_09052025/fig3b_v3.pdf"), unit = "in", height = 12, width = 20) 
+
+
+s_content_df %>% 
+  ggplot(aes(x = avgS, fill = Lifestyle)) +
+  geom_density(aes(y = ..count.. * 0.0005) , alpha=0.6) + 
+  facet_wrap(taxa_elm~., ncol = 2, scales = "free_y", strip.position="right") + scale_fill_manual(values = c("#0016a6", "#0271a8", "#497502"))  + theme_minimal() + theme(panel.grid.minor = element_blank(), panel.spacing = unit(0, "lines"), strip.text.y = element_text(angle = 0)) + scale_x_continuous(expand = expansion(mult = c(0.01,0.01))) + scale_y_continuous(n.breaks = 3) 
+ggsave(plot = last_plot(), file = paste0("2025Results/newProteinFilter_09052025/fig3b_v4.pdf"), unit = "in", height = 12, width = 20) 
+
+s_content_df %>% 
+  ggplot(aes(x = avgS)) + 
+  geom_density(aes(y = ..count.. * 0.0005, fill = Lifestyle, color = Lifestyle) , alpha=0.1) + 
+  geom_histogram(aes(y = ..count.., fill = Lifestyle), alpha=0.6, position = 'identity', binwidth = 0.0005) +
+  facet_wrap(taxa_elm~., ncol = 2, scales = "free_y", strip.position="right") + scale_fill_manual(values = c("#0016a6", "#0271a8", "#497502")) + scale_color_manual(values = c("#0016a6", "#0271a8", "#497502")) + theme_minimal() + theme(panel.grid.minor = element_blank(), panel.spacing = unit(0, "lines"), strip.text.y = element_text(angle = 0)) + scale_x_continuous(expand = expansion(mult = c(0.01,0.01))) + scale_y_continuous(n.breaks = 3) 
+ggsave(plot = last_plot(), file = paste0("2025Results/newProteinFilter_09052025/fig3b_v5.pdf"), unit = "in", height = 12, width = 20) 
+
+# add the mean for each taxa to final figure
+s_content_df %>% 
+  ggplot(aes(x = avgS)) + 
+  geom_density(aes(y = ..count.. * 0.0005, fill = Lifestyle, color = Lifestyle) , alpha=0.1) + 
+  geom_histogram(aes(y = ..count.., fill = Lifestyle), alpha=0.6, position = 'identity', binwidth = 0.0005) + 
+  facet_wrap(taxa_elm~., ncol = 2, scales = "free_y", strip.position="right") + 
+  scale_fill_manual(values = c("#0016a6", "#0271a8", "#497502")) + 
+  scale_color_manual(values = c("#0016a6", "#0271a8", "#497502")) + 
+  theme_minimal() + 
+  theme(panel.grid.minor = element_blank(), panel.spacing = unit(0, "lines"), strip.text.y = element_text(angle = 0)) + 
+  scale_x_continuous(expand = expansion(mult = c(0.01,0.01))) + 
+  scale_y_continuous(n.breaks = 3) +
+  geom_vline(data = taxa_s_content_summary, aes(xintercept = mean_s))
+ggsave(plot = last_plot(), file = paste0("2025Results/newProteinFilter_09052025/fig3b_v6.pdf"), unit = "in", height = 12, width = 20) 
+
+# remove small groups from the final figure
+s_content_df %>% group_by(taxa_elm, Lifestyle) %>% summarise(n = n()) %>% filter(n <= 10)
+s_content_df %>% group_by(taxa_elm, Lifestyle) %>% filter(n() > 10) %>%
+  ggplot(aes(x = avgS)) + 
+  geom_density(aes(y = ..count.. * 0.0005, fill = Lifestyle, color = Lifestyle) , alpha=0.1) + 
+  geom_histogram(aes(y = ..count.., fill = Lifestyle), alpha=0.6, position = 'identity', binwidth = 0.0005) + 
+  facet_wrap(taxa_elm~., ncol = 2, scales = "free_y", strip.position="right") + 
+  scale_fill_manual(values = c("#0016a6", "#0271a8", "#497502")) + 
+  scale_color_manual(values = c("#0016a6", "#0271a8", "#497502")) + 
+  theme_minimal() + 
+  theme(panel.grid.minor = element_blank(), panel.spacing = unit(0, "lines"), strip.text.y = element_text(angle = 0)) + 
+  scale_x_continuous(expand = expansion(mult = c(0.01,0.01))) + 
+  scale_y_continuous(n.breaks = 3)
+ggsave(plot = last_plot(), file = paste0("2025Results/newProteinFilter_09052025/fig3b_v7.pdf"), unit = "in", height = 12, width = 20) 
+```
 ### Panel B without incompletes
-Going to produce a figure for all of the taxa without incompletes, and then select a couple taxa for fun
+Going to produce a figure for all of the taxa without incomplete sulfate assimilators, and then select a couple taxa for fun. This figure is used for PriME poster in October of 2025.
 ```{r}
 s_content_df %>% filter(Lifestyle != "incomplete") %>%
   ggplot(aes(x = avgS, fill = Lifestyle)) + 
@@ -961,11 +1021,43 @@ ggsave(plot = last_plot(), file = paste0("2025Results/newProteinFilter_09052025/
 fig3_order3 <- c("Firmicutes", "Alpha-Pelagibacter", "Gamma-Alteromonas", "Alpha-Rhodobacter")
 s_content_df %>% filter(taxa_elm %in% fig3_order3) %>% filter(Lifestyle != "incomplete") %>%
   ggplot(aes(x = avgS, fill = Lifestyle)) + 
-  geom_histogram(alpha=0.6, position = 'identity') + facet_wrap(taxa_elm~., ncol = 2, scales = "free_y") + scale_fill_manual(values = c("#0016a6", "#497502"), labels = c("Sulfate Assimilator", "Putative Auxotroph")) + theme_bw() + theme(plot.title = element_text(size = 12, face = "plain", hjust = 0.5), plot.subtitle = element_blank(), axis.title.x = element_text(face = "plain"), axis.title.y = element_text(face = "plain"), plot.caption = element_blank()) + labs(title = "B. Distribution of S Content Across Select Taxa") + xlab("Average Sulfur Content of Proteome") + ylab("Count of Genomes")
+  geom_histogram(alpha=0.6, position = 'identity') + facet_wrap(taxa_elm~., ncol = 2, scales = "free_y") + scale_fill_manual(values = c("#0016a6", "#497502"), labels = c("Sulfate Assimilator", "Putative Auxotroph")) + theme_bw() + theme(plot.title = element_text(size = 12, face = "plain", hjust = 0.5), plot.subtitle = element_blank(), axis.title.x = element_text(face = "plain"), axis.title.y = element_text(face = "plain"), plot.caption = element_blank()) + labs(title = "B. Distribution of S Content Across Select Taxa") + xlab("Average Sulfur Content of Proteome") + ylab("Count of Genomes") + geom_vline(data = taxa_s_content_summary[which(taxa_s_content_summary$taxa_elm %in% fig3_order3),], aes(xintercept = mean_s))
 ggsave(plot = last_plot(), file = paste0("2025Results/newProteinFilter_09052025/fig3b_5_noincompletes_selecttaxa.pdf"), unit = "in", height = 5, width = 6) 
 ```
 ## Combining Panel A and B
-Without incompletes:
+With incompletes:
+```{r}
+plt <- ggbetweenstats(
+  data = s_content_df,
+  x = Lifestyle,
+  y = avgS, digits = 5,
+  type = "np",
+  point.dodge.width = 0.8)
+plt <- plt + labs(
+  x = "Lifestyle", 
+  title = "Distribution of S Proteome Content across S Lifestyles"
+) + scale_colour_manual(values = c(values3[1], values3[3], values3[2])) + labs(title = "A. Distribution of S Content Across Lifestyle") + ylab("Average Sulfur Content of Proteome") + xlab("Lifestyle") + theme(plot.title = element_text(size = 12, face = "plain", hjust = 0.5), plot.subtitle = element_blank(), axis.title.x = element_text(face = "plain"), axis.title.y = element_text(face = "plain"), plot.caption = element_blank())
+plt
+plt2 <- s_content_df %>% 
+  ggplot(aes(x = avgS)) + 
+  geom_density(aes(y = ..count.. * 0.0005, fill = Lifestyle, color = Lifestyle) , alpha=0.1) + 
+  geom_histogram(aes(y = ..count.., fill = Lifestyle), alpha=0.6, position = 'identity', binwidth = 0.0005) +
+  facet_wrap(taxa_elm~., ncol = 2, scales = "free_y", strip.position="right") + 
+  scale_fill_manual(values = c("#0016a6", "#0271a8", "#497502")) + 
+  scale_color_manual(values = c("#0016a6", "#0271a8", "#497502")) + 
+  theme_minimal() +
+  labs(title = "B. Distribution of S Content Across Taxa") +  
+  theme(panel.grid.minor = element_blank(), plot.title = element_text(size = 12, face = "plain", hjust = 0.5), panel.spacing = unit(0, "lines"), strip.text.y = element_text(angle = 0)) + 
+  scale_x_continuous(expand = expansion(mult = c(0.01,0.01))) + 
+  scale_y_continuous(n.breaks = 3) +
+  xlab("Average Sulfur Content of Proteome") + ylab("Count of Genomes")
+plt2
+#combine
+ggarrange(plt, plt2, align = "hv", widths = c(7,9))
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/Fig3Variations/fig3_v1.pdf", unit = "in", height = 10, width = 20) 
+
+```
+Without incompletes and noly using select taxa for panel B (for PriME Poster):
 ```{r}
 # bring in the first panel we want
 data <- read.csv("20250905_protein.filt.sum.csv", row.names = 1)
@@ -987,11 +1079,11 @@ plt <- plt + labs(
 fig3_order3 <- c("Firmicutes", "Alpha-Pelagibacter", "Gamma-Alteromonas", "Alpha-Rhodobacter")
 plt2 <- s_content_df %>% filter(taxa_elm %in% fig3_order3) %>% filter(Lifestyle != "incomplete") %>%
   ggplot(aes(x = avgS, fill = Lifestyle)) + 
-  geom_histogram(alpha=0.6, position = 'identity') + facet_wrap(taxa_elm~., ncol = 2, scales = "free_y") + scale_fill_manual(values = c("#0016a6", "#497502"), labels = c("Sulfate Assimilator", "Putative Auxotroph")) + theme_bw() + theme(plot.title = element_text(size = 12, face = "plain", hjust = 0.5), plot.subtitle = element_blank(), axis.title.x = element_text(face = "plain"), axis.title.y = element_text(face = "plain"), plot.caption = element_blank()) + labs(title = "B. Distribution of S Content Across Select Taxa") + xlab("Average Sulfur Content of Proteome") + ylab("Count of Genomes")
+  geom_histogram(alpha=0.6, position = 'identity') + facet_wrap(taxa_elm~., ncol = 2, scales = "free_y") + scale_fill_manual(values = c("#0016a6", "#497502"), labels = c("Sulfate Assimilator", "Putative Auxotroph")) + theme_bw() + theme(plot.title = element_text(size = 12, face = "plain", hjust = 0.5), plot.subtitle = element_blank(), axis.title.x = element_text(face = "plain"), axis.title.y = element_text(face = "plain"), plot.caption = element_blank()) + labs(title = "B. Distribution of S Content Across Select Taxa") + xlab("Average Sulfur Content of Proteome") + ylab("Count of Genomes") + geom_vline(data = taxa_s_content_summary[which(taxa_s_content_summary$taxa_elm %in% fig3_order3),], aes(xintercept = mean_s))
 
 #combine
 ggarrange(plt, plt2, align = "hv", widths = c(7,9))
-ggsave(plot = last_plot(), file = "2025Results/Fig3Variations/fig3_v2.pdf", unit = "in", height = 6, width = 14) 
+ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/Fig3Variations/fig3_v2.pdf", unit = "in", height = 6, width = 14) 
 ```
 
 ### Checking some numbers
