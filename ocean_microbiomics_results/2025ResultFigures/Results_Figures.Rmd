@@ -22,7 +22,7 @@ library("NatParksPalettes")
 library(nationalparkcolors)
 library(ggpubr)
 library(patchwork)
-
+library(ggridges)
 
 # setting color palettes
 c(natparks.pals("IguazuFalls", 6))
@@ -38,10 +38,7 @@ names(tcols) <- sort(unique(df$taxa_elm)[1:30])
 # Genomes
 Import all of our files and get the right number of genomes in these files.
 ```{r}
-si_lifestyle <- read.csv("new_filtered_SA/Sulfate Assimilationprocessed_above75genomecompletion_wlifestyle.csv")
-si_lifestyle <- si_lifestyle[,c(1,23)]
-names(si_lifestyle)[1] <- "Genome"
-# remove genomes with no phyla (no GTDB taxonomy)
+# remove genomes with no phyla (no GTDB taxonomy), and make sure we are using this for our taxonomy (include alteromondacaeae)
 names_ids <- read.csv("genome_summary_ELM_2.csv")
 names_ids <- names_ids[-(which(is.na(names_ids$Phyla))),]
 names_ids <- names_ids[,c(1,56)]
@@ -56,17 +53,25 @@ names_id_filtered <- names_ids[which(names_ids$Genome %in% maxcompletion$Genome)
 nrow(names_id_filtered)
 # check some numbers
 head(names_id_filtered %>% group_by(taxa_elm) %>% summarize(n= n()), n = 30L)
-
+# import the S_i Lifestyles and filter to the correct genomes AND the right taxonomic groups
+si_lifestyle <- read.csv("new_filtered_SA/2024_June19_ERIN_SulfateAssimilationprocessed_above75genomecompletion.csv", row.names = 1)
+names(si_lifestyle)[1] <- "Genome"
+si_lifestyle$taxa_elm <- NULL
+# fix the taxa in the si lifestyle file and save as new file 
+si_lifestyle <- merge(si_lifestyle, names_id_filtered, by = "Genome")
+write.csv(x = si_lifestyle, "new_filtered_SA/2025_1022_MAD_SulfateAssimilationprocessed_above75genomecompletion.csv", quote = F)
+si_lifestyle %>% group_by(taxa_elm) %>% summarise(n = n())
+si_lifestyle <- si_lifestyle[,c(1,21)]
 ```
 # Figure 2
 A figure that contains information about S lifestyle per taxa, with genome metadata.
 ## Panel A, the bar plot figure, with Panel B, the genome metadata figure
 Using the files imported above:
 ```{r}
-our_genomes <- read.csv("new_filtered_SA/2024_June19_ERIN_SulfateAssimilationprocessed_above75genomecompletion.csv", row.names = 1)
+our_genomes <- read.csv("new_filtered_SA/2025_1022_MAD_SulfateAssimilationprocessed_above75genomecompletion.csv", row.names = 1)
 # limit to 15969 correct genomes from chunk above
 our_genomes <- our_genomes %>% filter(Genome %in% names_id_filtered$Genome)
-#check suns of auxotrophs, assimilators and incompletes
+#check sums of auxotrophs, assimilators and incompletes
 our_genomes %>% group_by(Lifestyle) %>% summarise(n = n())
 table1 <- our_genomes %>% group_by(taxa_elm) %>% summarise(n = n())
 table2 <- our_genomes %>% filter(Lifestyle == "auxotroph") %>% group_by(taxa_elm) %>% summarise(n_aux = n())
@@ -107,8 +112,8 @@ p2 <- ggplot(table1, aes(x = taxa_elm, y = n, fill = mean)) + geom_bar(stat = "i
   annotate("text", y = 20 +table1$n[which(table1$taxa_elm == order1[7])], x = 7, hjust = 0, size = 2,label = round(table1$mean[which(table1$taxa_elm == order1[7])],1)) +
   annotate("text", y = 20 +table1$n[which(table1$taxa_elm == order1[8])], x = 8, hjust = 0, size = 2,label = round(table1$mean[which(table1$taxa_elm == order1[8])],1)) +
   annotate("text", y = 20 +table1$n[which(table1$taxa_elm == order1[9])], x = 9, hjust = 0, size = 2,label = round(table1$mean[which(table1$taxa_elm == order1[9])],1)) +
-  annotate("text", y = 20 +table1$n[which(table1$taxa_elm == order1[10])], x = 10, hjust = 0, size = 2,label = round(table1$mean[which(table1$taxa_elm == order1[10])],1)) +
-  annotate("text", y = table1$n[which(table1$taxa_elm == order1[11])] -20, x = 11, hjust = 1, size = 2,color = "white", label = round(table1$mean[which(table1$taxa_elm == order1[11])],1)) +
+  annotate("text", y = 20 +table1$n[which(table1$taxa_elm == order1[11])], x = 11, hjust = 0, size = 2,label = round(table1$mean[which(table1$taxa_elm == order1[11])],1)) +
+  annotate("text", y = table1$n[which(table1$taxa_elm == order1[10])] -20, x = 10, hjust = 1, size = 2,color = "white", label = round(table1$mean[which(table1$taxa_elm == order1[10])],1)) +
   annotate("text", y = 20 +table1$n[which(table1$taxa_elm == order1[12])], x = 12, hjust = 0, size = 2,label = round(table1$mean[which(table1$taxa_elm == order1[12])],1)) +
   annotate("text", y = 20 +table1$n[which(table1$taxa_elm == order1[13])], x = 13, hjust = 0, size = 2,label = round(table1$mean[which(table1$taxa_elm == order1[13])],1)) +
   annotate("text", y = 20 +table1$n[which(table1$taxa_elm == order1[14])], x = 14, hjust = 0, size = 2,label = round(table1$mean[which(table1$taxa_elm == order1[14])],1)) +
@@ -132,7 +137,7 @@ p2
 p3 <- ggarrange(p1, p2, align = "hv", legend = "top", widths = c(6,4))
 ggsave(filename = "2025Results/Fig2Variations/fig2_annotated.pdf", plot = p3, width=14, height=5)
 
-order2 <- c(order1[3], order1[2], order1[1], order1[4:30])
+order2 <- c(order1[2], order1[1], order1[3:30])
 our_genomes$taxa_elm <- factor(our_genomes$taxa_elm, levels = order2)
 our_genomes$Lifestyle <- factor(
   our_genomes$Lifestyle, levels =c("assimilator", "incomplete", "auxotroph"))
@@ -159,8 +164,8 @@ p2 <- ggplot(table1, aes(x = taxa_elm, y = n, fill = mean)) + geom_bar(stat = "i
   annotate("text", y = 20 +table1$n[which(table1$taxa_elm == order2[7])], x = 7, hjust = 0, size = 2,label = round(table1$mean[which(table1$taxa_elm == order2[7])],1)) +
   annotate("text", y = 20 +table1$n[which(table1$taxa_elm == order2[8])], x = 8, hjust = 0, size = 2,label = round(table1$mean[which(table1$taxa_elm == order2[8])],1)) +
   annotate("text", y = 20 +table1$n[which(table1$taxa_elm == order2[9])], x = 9, hjust = 0, size = 2,label = round(table1$mean[which(table1$taxa_elm == order2[9])],1)) +
-  annotate("text", y = 20 +table1$n[which(table1$taxa_elm == order2[10])], x = 10, hjust = 0, size = 2,label = round(table1$mean[which(table1$taxa_elm == order2[10])],1)) +
-  annotate("text", y = table1$n[which(table1$taxa_elm == order2[11])] -20, x = 11, hjust = 1, size = 2,color = "white", label = round(table1$mean[which(table1$taxa_elm == order2[11])],1)) +
+  annotate("text", y = 20 +table1$n[which(table1$taxa_elm == order2[11])], x = 11, hjust = 0, size = 2,label = round(table1$mean[which(table1$taxa_elm == order2[11])],1)) +
+  annotate("text", y = table1$n[which(table1$taxa_elm == order2[10])] -20, x = 10, hjust = 1, size = 2,color = "white", label = round(table1$mean[which(table1$taxa_elm == order2[10])],1)) +
   annotate("text", y = 20 +table1$n[which(table1$taxa_elm == order2[12])], x = 12, hjust = 0, size = 2,label = round(table1$mean[which(table1$taxa_elm == order2[12])],1)) +
   annotate("text", y = 20 +table1$n[which(table1$taxa_elm == order2[13])], x = 13, hjust = 0, size = 2,label = round(table1$mean[which(table1$taxa_elm == order2[13])],1)) +
   annotate("text", y = 20 +table1$n[which(table1$taxa_elm == order2[14])], x = 14, hjust = 0, size = 2,label = round(table1$mean[which(table1$taxa_elm == order2[14])],1)) +
@@ -725,9 +730,9 @@ This uses the S protein content calculated in September, 2025, that takes into a
 Pull in the data. Check data.
 ```{r}
 data <- read.csv("20250905_protein.filt.sum.csv", row.names = 1)
-our_genomes <- read.csv("new_filtered_SA/2024_June19_ERIN_SulfateAssimilationprocessed_above75genomecompletion.csv", row.names = 1)
+our_genomes <- read.csv("new_filtered_SA/2025_1022_MAD_SulfateAssimilationprocessed_above75genomecompletion.csv", row.names = 1)
 our_genomes <- our_genomes %>% filter(Genome %in% names_id_filtered$Genome)
-s_content_df <- merge(x = our_genomes[,c(1,20,22)], y = data[,-c(2)], by.x = "Genome", by.y = "genome")
+s_content_df <- merge(x = our_genomes[,c(1,21,22)], y = data[,-c(2)], by.x = "Genome", by.y = "genome")
 s_content_df$Lifestyle <- factor(s_content_df$Lifestyle, levels = c("assimilator","incomplete","auxotroph"))
 s_content_df %>% group_by(Lifestyle) %>% summarise(mean_Scontent = mean(avgS))
 ```
@@ -858,14 +863,15 @@ ggsave(plot = last_plot(), file = "2025Results/newProteinFilter_09052025/fig3a_4
 Let's make a new panel A without any incompletes, for PriME Meeting Poster in October of 2025.
 ```{r}
 data <- read.csv("20250905_protein.filt.sum.csv", row.names = 1)
-our_genomes <- read.csv("new_filtered_SA/2024_June19_ERIN_SulfateAssimilationprocessed_above75genomecompletion.csv", row.names = 1)
+our_genomes <- read.csv("new_filtered_SA/2025_1022_MAD_SulfateAssimilationprocessed_above75genomecompletion.csv", row.names = 1)
 our_genomes <- our_genomes %>% filter(Genome %in% names_id_filtered$Genome)
-s_content_df <- merge(x = our_genomes[,c(1,20,22)], y = data[,-c(2)], by.x = "Genome", by.y = "genome")
+s_content_df <- merge(x = our_genomes[,c(1,21,22)], y = data[,-c(2)], by.x = "Genome", by.y = "genome")
+s_content_df %>% group_by(Lifestyle) %>% summarise(mean = mean(avgS))
 plt <- s_content_df %>% filter(Lifestyle != "incomplete") %>% 
   ggbetweenstats(
   x = Lifestyle,
   y = avgS, digits = 4,
-  type = "np",
+  type = "p",
   point.dodge.width = 0.8)
 
 plt + labs(
@@ -1002,7 +1008,7 @@ s_content_df %>% group_by(taxa_elm, Lifestyle) %>% filter(n() > 10) %>%
   ggplot(aes(x = avgS)) + 
   geom_density(aes(y = ..count.. * 0.0005, fill = Lifestyle, color = Lifestyle) , alpha=0.1) + 
   geom_histogram(aes(y = ..count.., fill = Lifestyle), alpha=0.6, position = 'identity', binwidth = 0.0005) + 
-  facet_wrap(taxa_elm~., ncol = 2, scales = "free_y", strip.position="right") + 
+  facet_wrap(taxa_elm~., ncol = 1, scales = "free_y", strip.position="right") + 
   scale_fill_manual(values = c("#0016a6", "#0271a8", "#497502")) + 
   scale_color_manual(values = c("#0016a6", "#0271a8", "#497502")) + 
   theme_minimal() + 
@@ -1010,6 +1016,42 @@ s_content_df %>% group_by(taxa_elm, Lifestyle) %>% filter(n() > 10) %>%
   scale_x_continuous(expand = expansion(mult = c(0.01,0.01))) + 
   scale_y_continuous(n.breaks = 3)
 ggsave(plot = last_plot(), file = paste0("2025Results/newProteinFilter_09052025/fig3b_v7.pdf"), unit = "in", height = 12, width = 20) 
+
+# try to use geom density ridges to make the ridges overlap instead of being stumpy
+assim_d <- density(s_content_df$avgS[which(s_content_df$Lifestyle == "assimilator")])
+aux_d <- density(s_content_df$avgS[which(s_content_df$Lifestyle == "auxotroph")])
+incom_d <- density(s_content_df$avgS[which(s_content_df$Lifestyle == "incomplete")])
+assim_length <- length(which(s_content_df$Lifestyle == "assimilator"))
+aux_length <- length(which(s_content_df$Lifestyle == "auxotroph"))
+incom_length <- length(which(s_content_df$Lifestyle == "incomplete"))
+dif <- tidyr::pivot_longer(data.frame(s_content = assim_d$x, 
+                               assim_1 = assim_d$y * assim_length/incom_length, 
+                               incom_1 = incom_d$y, 
+                               aux_1 = aux_d$y * aux_length/incom_length, 
+                               assim_2 = assim_d$y * assim_length/incom_length, 
+                               incom_2 = incom_d$y, 
+                               aux_2 = aux_d$y * aux_length/incom_length, 
+                               assim_3 = assim_d$y * assim_length/incom_length, 
+                               incom_3 = incom_d$y, 
+                               aux_3 = aux_d$y * aux_length/incom_length), -1, names_to = "bin")
+dif$num <-NA
+dif$num[grep("1", dif$bin)] <- 1
+dif$num[grep("2", dif$bin)] <- 2
+dif$num[grep("3", dif$bin)] <- 3
+ggplot(dif, aes(x = s_content, y = num, height = value, fill = bin)) + 
+  geom_density_ridges(stat = "identity", alpha = 0.4)+
+  labs(x = "S content", y = "lifestyle")+
+  theme_minimal()
+
+
+s_content_df %>% ggplot(aes(x = avgS, fill = Lifestyle)) + geom_histogram(alpha = 0.6)
+s_content_df %>% ggplot()
+tidyr::pivot_longer(data.frame(yrs = density(df1$yrs)$x,
+                      foo1 = density(df1$yrs)$y * nrow(df1)/nrow(df2),
+                      foo2 = density(df2$yrs)$y), -1, names_to = "bin")
+
+# going to give up for now :(
+
 ```
 ### Panel B without incompletes
 Going to produce a figure for all of the taxa without incomplete sulfate assimilators, and then select a couple taxa for fun. This figure is used for PriME poster in October of 2025.
@@ -1018,7 +1060,7 @@ s_content_df %>% filter(Lifestyle != "incomplete") %>%
   ggplot(aes(x = avgS, fill = Lifestyle)) + 
   geom_histogram(alpha=0.6, position = 'identity') + facet_wrap(taxa_elm~., ncol = 5, scales = "free_y") + scale_fill_manual(values = c("#0016a6", "#497502")) + theme_minimal()
 ggsave(plot = last_plot(), file = paste0("2025Results/newProteinFilter_09052025/fig3b_5_noincompletes.pdf"), unit = "in", height = 24, width = 20) 
-fig3_order3 <- c("Firmicutes", "Alpha-Pelagibacter", "Gamma-Alteromonas", "Alpha-Rhodobacter")
+fig3_order3 <- c("Firmicutes", "Alpha-Pelagibacter", "Gamma-Alteromonadaceae", "Alpha-Rhodobacter")
 s_content_df %>% filter(taxa_elm %in% fig3_order3) %>% filter(Lifestyle != "incomplete") %>%
   ggplot(aes(x = avgS, fill = Lifestyle)) + 
   geom_histogram(alpha=0.6, position = 'identity') + facet_wrap(taxa_elm~., ncol = 2, scales = "free_y") + scale_fill_manual(values = c("#0016a6", "#497502"), labels = c("Sulfate Assimilator", "Putative Auxotroph")) + theme_bw() + theme(plot.title = element_text(size = 12, face = "plain", hjust = 0.5), plot.subtitle = element_blank(), axis.title.x = element_text(face = "plain"), axis.title.y = element_text(face = "plain"), plot.caption = element_blank()) + labs(title = "B. Distribution of S Content Across Select Taxa") + xlab("Average Sulfur Content of Proteome") + ylab("Count of Genomes") + geom_vline(data = taxa_s_content_summary[which(taxa_s_content_summary$taxa_elm %in% fig3_order3),], aes(xintercept = mean_s))
@@ -1031,7 +1073,7 @@ plt <- ggbetweenstats(
   data = s_content_df,
   x = Lifestyle,
   y = avgS, digits = 5,
-  type = "np",
+  type = "p",
   point.dodge.width = 0.8)
 plt <- plt + labs(
   x = "Lifestyle", 
@@ -1061,9 +1103,9 @@ Without incompletes and noly using select taxa for panel B (for PriME Poster):
 ```{r}
 # bring in the first panel we want
 data <- read.csv("20250905_protein.filt.sum.csv", row.names = 1)
-our_genomes <- read.csv("new_filtered_SA/2024_June19_ERIN_SulfateAssimilationprocessed_above75genomecompletion.csv", row.names = 1)
+our_genomes <- read.csv("new_filtered_SA/2025_1022_MAD_SulfateAssimilationprocessed_above75genomecompletion.csv", row.names = 1)
 our_genomes <- our_genomes %>% filter(Genome %in% names_id_filtered$Genome)
-s_content_df <- merge(x = our_genomes[,c(1,20,22)], y = data[,-c(2)], by.x = "Genome", by.y = "genome")
+s_content_df <- merge(x = our_genomes[,c(1,21,22)], y = data[,-c(2)], by.x = "Genome", by.y = "genome")
 plt <- s_content_df %>% filter(Lifestyle != "incomplete") %>% 
   ggbetweenstats(
   x = Lifestyle,
@@ -1076,10 +1118,10 @@ plt <- plt + labs(
 ) + scale_colour_manual(values = c(values3[1], values3[2])) + theme(plot.title = element_text(size = 12, face = "plain", hjust = 0.5), plot.subtitle = element_blank(), axis.title.x = element_text(face = "plain"), axis.title.y = element_text(face = "plain"), plot.caption = element_blank()) + labs(title = "A. Distribution of S Content Across Lifestyle") + ylab("Average Sulfur Content of Proteome") + xlab("Lifestyle") + scale_x_discrete(labels = c("Sulfate Assimilator\n(n = 3,189)", "Putative Auxotroph\n(n = 5,339)"))
 
 #bring in the second panel we want
-fig3_order3 <- c("Firmicutes", "Alpha-Pelagibacter", "Gamma-Alteromonas", "Alpha-Rhodobacter")
+fig3_order3 <- c("Firmicutes", "Alpha-Pelagibacter", "Gamma-Alteromonadaceae", "Alpha-Rhodobacter")
 plt2 <- s_content_df %>% filter(taxa_elm %in% fig3_order3) %>% filter(Lifestyle != "incomplete") %>%
   ggplot(aes(x = avgS, fill = Lifestyle)) + 
-  geom_histogram(alpha=0.6, position = 'identity') + facet_wrap(taxa_elm~., ncol = 2, scales = "free_y") + scale_fill_manual(values = c("#0016a6", "#497502"), labels = c("Sulfate Assimilator", "Putative Auxotroph")) + theme_bw() + theme(plot.title = element_text(size = 12, face = "plain", hjust = 0.5), plot.subtitle = element_blank(), axis.title.x = element_text(face = "plain"), axis.title.y = element_text(face = "plain"), plot.caption = element_blank()) + labs(title = "B. Distribution of S Content Across Select Taxa") + xlab("Average Sulfur Content of Proteome") + ylab("Count of Genomes") + geom_vline(data = taxa_s_content_summary[which(taxa_s_content_summary$taxa_elm %in% fig3_order3),], aes(xintercept = mean_s))
+  geom_histogram(alpha=0.6, position = 'identity') + facet_wrap(taxa_elm~., ncol = 2, scales = "free_y") + scale_fill_manual(values = c("#0016a6", "#497502"), labels = c("Sulfate Assimilator", "Putative Auxotroph")) + theme_bw() + theme(plot.title = element_text(size = 12, face = "plain", hjust = 0.5), plot.subtitle = element_blank(), axis.title.x = element_text(face = "plain"), axis.title.y = element_text(face = "plain"), plot.caption = element_blank()) + labs(title = "B. Distribution of S Content Across Select Taxa") + xlab("Average Sulfur Content of Proteome") + ylab("Count of Genomes") + geom_vline(data = taxa_s_content_summary[which(taxa_s_content_summary$taxa_elm %in% fig3_order3),], aes(xintercept = mean_s), linetype = "dashed")
 
 #combine
 ggarrange(plt, plt2, align = "hv", widths = c(7,9))
@@ -1094,6 +1136,122 @@ s_content_df %>% group_by(taxa_elm) %>% summarise(n = n())
 # Figure 4
 This figure looks at the pathways per genome, and includes indicator analysis.
 ## Panel B
+###Checking some numbers first.
+```{r}
+# Cysteine biosynthesis
+test_df <- read.csv("kofam_results/Cysteine Biosynthesisprocessed_above75genomecompletion.csv")
+test_df <- test_df %>% filter(X %in% names_id_filtered$Genome)
+test_df %>% filter(MaxCompletion== 1) %>% summarise(count_s1 = sum(Subpathway1), count_s2 = sum(Subpathway2), count_s3 = sum(Subpathway3), count_s4 = sum(Subpathway4), count_s5 = sum(Subpathway5))
+# looks like subpathway 1 is the pathway that is getting most of the genomes to the completion of the pathway
+test_df %>% filter(Subpathway1 == 0.5) %>% summarise(count_step1 = sum(Step1), count_step2 = sum(Step2))
+# Therefore, not all of the genomes are incomplete for the same reason. What should we do? 
+test_df %>% select(Step1, Step2, Group) %>% pivot_longer(cols = where(is.numeric)) %>% ggplot(aes(x = name, y = value)) + geom_boxplot() + geom_point(position = "jitter", alpha = 0.1) + facet_wrap(Group~., nrow = 5)
+# no explicit taxonomic signal...if they have one step, should they just have the other for subpathway 1?
+# michelle's vote: leave the incompletes as is or turn them to complete.
+```
+
+```{r}
+# Cysteine.Degradation
+# this pathway is either a two step reaction or a one step reaction
+test_df <- read.csv("kofam_results/Cysteine Degradationprocessed_above75genomecompletion.csv")
+test_df <- test_df %>% filter(X %in% names_id_filtered$Genome)
+test_df %>% filter(MaxCompletion== 1) %>% summarise(count_step1 = sum(Step1), count_step2 = sum(Step2), count_step3 = sum(Step3), count_step4 = sum(Step4), count_step5 = sum(Step5))
+# mostly being completed by step 5, which subpathway 4
+test_df %>% filter(MaxCompletion != 1) %>% summarise(count_step1 = sum(Step1), count_step2 = sum(Step2), count_step3 = sum(Step3), count_step4 = sum(Step4), count_step5 = sum(Step5))
+test_df %>% select(Step1, Step2, Step3, Step4, Step5, Group) %>% pivot_longer(cols = where(is.numeric)) %>% ggplot(aes(x = name, y = value)) + geom_boxplot() + geom_point(position = "jitter", alpha = 0.1) + facet_wrap(Group~., nrow = 5)
+# Therefore, not all of the genomes are incomplete for the same reason, besides the fact that they do not have the one-step pathways. What should we do?
+# michelle's vote: leave the incompletes as is or turn them to complete.
+```
+
+```{r}
+# Methionine.Synthesis
+# these are long pathways, an average of ~4 steps per subpathway option
+test_df <- read.csv("kofam_results/Methionine Synthesisprocessed_above75genomecompletion.csv")
+test_df <- test_df %>% filter(X %in% names_id_filtered$Genome)
+test_df %>% filter(Subpathway1 ==1 ) %>% summarise(n = n())
+test_df %>% filter(Subpathway2 ==1 ) %>% summarise(n = n())
+test_df %>% filter(Subpathway3 ==1 ) %>% summarise(n = n())
+#7,251
+test_df %>% filter(Subpathway4 ==1 ) %>% summarise(n = n())
+test_df %>% filter(Subpathway5 ==1 ) %>% summarise(n = n())
+test_df %>% filter(Subpathway6 ==1 ) %>% summarise(n = n())
+# looks like most are using subpathway 3 (3 steps) or subpathway 6 (6 steps)
+# because subpathway 6 contains all three steps of subpathway 3, in order, we'll just consider subpathway 3
+# subpathway 3
+test_df %>% summarise(count_step1 = sum(Step7), count_step2 = sum(Step8), count_step3 = sum(Step4))
+# looks like it isn't necessaryily the same step everytime being absent; step 7 and step 4 are lower in abundance but they're still in 10,000 genomes each. What do we do here?
+# let's see how many genomes are just missing one step
+test_df %>% filter(Subpathway3 != 1 & Subpathway3 > 0.5) %>% summarise(n=n())
+# 5,197
+test_df %>% filter(Subpathway3 != 0 & Subpathway3 < 0.5) %>% summarise(n=n())
+# 3,127
+test_df %>% filter(Subpathway3 == 0 ) %>% summarise(n=n())
+# 394
+# let's see how this is distributed across taxa
+test_df %>% select(Step7, Step8, Step4, Group) %>% pivot_longer(cols = where(is.numeric)) %>% ggplot(aes(x = name, y = value)) + geom_boxplot() + geom_point(position = "jitter", alpha = 0.1) + facet_wrap(Group~., nrow = 5)
+test_df %>% filter(MaxCompletion < 1 & MaxCompletion > 0.5) %>% select(Step7, Step8, Step4, Group) %>% pivot_longer(cols = where(is.numeric)) %>% ggplot(aes(x = name, y = value)) + geom_boxplot() + geom_point(position = "jitter", alpha = 0.1) + facet_wrap(Group~., nrow = 5)
+# the figure above makes it look like many genomes have step 7 and 8 but not 4. Let's see how many that is relative to the other options
+test_df %>% select(Step7, Step8, Step4, Group) %>% filter(Step4 == 0 & Step7 ==1 & Step8 ==1) %>% summarise(n = n()) #3,000 of the 5,000 genomes at 2/3 complete 
+test_df %>% select(Step7, Step8, Step4, Group) %>% filter(Step4 == 1 & Step7 ==0 & Step8 ==1) %>% summarise(n = n()) #~2000 genomes 5,000
+test_df %>% select(Step7, Step8, Step4, Group) %>% filter(Step4 == 1 & Step7 ==1 & Step8 ==0) %>% summarise(n = n()) # very few genomes
+# what do we do here? should we give 2/3 complete a present? Let's see how many are ==2/3 versus >2/3 but less than 1
+test_df %>% filter(MaxCompletion <1 & MaxCompletion > .66) %>% summarise(n = n())
+# 5,627 genomes; not many more than just those that are 2/3 complete from subpathway 3
+test_df %>% mutate(MaxCompletion = factor(MaxCompletion)) %>% group_by(MaxCompletion)%>% summarise(n = n())
+# dadabacteria are pretty distinct in their lack of hits for step 7 and 8?
+# michelle's vote: maybe change the 2/3 complete to fully complete, and leave the rest as is. Could go as far to say if you have greater than 2/3 completion (because some genomes may be using a different pathway and be 3/4 complete), then that would get you a present for methionine salvage.
+```
+
+```{r}
+# Glutathione.Synthesis
+# just a two step pathway
+test_df <- read.csv("kofam_results/Glutathione Synthesisprocessed_above75genomecompletion.csv")
+test_df <- test_df %>% filter(X %in% names_id_filtered$Genome) %>% select(X,Step1, Step2, Subpathway1,MaxCompletion,Group,Completion,Type)
+test_df %>% filter(Subpathway1 == 0.5) %>% summarise(count_step1 = sum(Step1), count_step2 = sum(Step2))
+test_df %>% select(Step1, Step2, Group) %>% pivot_longer(cols = where(is.numeric)) %>% ggplot(aes(x = name, y = value)) + geom_boxplot() + geom_point(position = "jitter", alpha = 0.1) + facet_wrap(Group~., nrow = 5)
+test_df %>% filter(MaxCompletion == 0.5) %>% select(Step1, Step2, Group) %>% pivot_longer(cols = where(is.numeric)) %>% ggplot(aes(x = name, y = value)) + geom_boxplot() + geom_point(position = "jitter", alpha = 0.1) + facet_wrap(Group~., nrow = 5)
+test_df %>% filter(Step1 == 1 & Step2 == 0) %>% summarise(n = n()) #1400 genomes
+test_df %>% filter(Step1 == 0 & Step2 == 1) %>% summarise(n = n()) #1900 genomes
+# Therefore, not all of the genomes are incomplete for the same reason.
+# what do we do?
+# are patescibacteria just missing a lot of things? to check in max completion?
+# michelle's vote: leave the incompletes as is.
+```
+
+```{r}
+# Methionine.Degradation
+# this is a 3 step process; only one subpathway
+test_df <- read.csv("kofam_results/Methionine Degradationprocessed_above75genomecompletion.csv")
+# remove step4 and 5, they are not used
+test_df <- test_df %>% filter(X %in% names_id_filtered$Genome) %>% select(X,Step1, Step2, Step3, Subpathway1,MaxCompletion,Group,Completion,Type)
+test_df %>% filter(MaxCompletion == 1) %>% summarise(n = n())
+test_df %>% filter(MaxCompletion < 1 & MaxCompletion > 0.5) %>% summarise(n = n()) #10,000 
+# are all 10000 missing the same one step?
+test_df %>% filter(Step1 == 0 & Step2 ==1 & Step3 ==1) %>% summarise(n = n()) #187 of the 10,000 genomes at 2/3 complete 
+test_df %>% filter(Step1== 1 & Step2 ==0 & Step3 ==1) %>% summarise(n = n()) #9,500 genomes 10,000
+test_df %>% filter(MaxCompletion > 0.5 & MaxCompletion < 1) %>% select(Step1, Step2, Step3, Group) %>% pivot_longer(cols = where(is.numeric)) %>% ggplot(aes(x = name, y = value)) + geom_boxplot() + geom_point(position = "jitter", alpha = 0.1) + facet_wrap(Group~., nrow = 5) # see how widespread missing step 2 is!
+test_df %>% filter(Step1 == 1 & Step2 ==1 & Step3 ==0) %>% summarise(n = n()) # 500 genomes
+# should we make it so that if you are missing step 2 only, we just give you the pathway?
+# michelle's vote: If you are only missing step 2 of the three steps, just make you complete. So, remove step two from the steps.
+```
+
+```{r}
+# Choline.O.sulfate.Degradation
+# 3 steps pathway, only one subpathway
+test_df <- read.csv("kofam_results/Choline-O-sulfate Degradationprocessed_above75genomecompletion.csv")
+test_df <- test_df %>% filter(X %in% names_id_filtered$Genome)
+# look at distribution of incomplete ones
+test_df %>% filter(MaxCompletion > 0.5 & MaxCompletion < 1) %>% select(Step1, Step2, Step3, Group) %>% pivot_longer(cols = where(is.numeric)) %>% ggplot(aes(x = name, y = value)) + geom_boxplot() + geom_point(position = "jitter", alpha = 0.1) + facet_wrap(Group~., nrow = 5) # is missing step 3 common?
+test_df %>% filter(MaxCompletion < 1 & MaxCompletion > 0.5) %>% summarise(n = n()) #3000
+test_df %>% filter(MaxCompletion >0 & MaxCompletion < 0.5) %>% summarise(n = n()) #5000
+# more common to be missing two steps than just one, so no
+test_df %>% filter(Step1 == 0 & Step2 ==0 & Step3 ==1) %>% summarise(n = n()) #260
+test_df %>% filter(Step1== 1 & Step2 ==0 & Step3 ==0) %>% summarise(n = n()) #2287
+test_df %>% filter(Step1 == 0 & Step2 ==1 & Step3 ==0) %>% summarise(n = n()) #3200
+#what do we do here?
+# michelle's vote: leave the incompletes as is, because you are missing 2/3 steps, and it's not the same steps you are missing; only ~2000 have the first step, so maybe we turn those to complete but otherwise, no?
+```
+### Figure making
 This takes the max completion values for each pathway for each genome and makes bar plots out of those values. This ONLY includes those values that are either zero or one.
 ```{r}
 df1 <- merge(maxcompletion, si_lifestyle, by.x = "Genome", by.y = "Genome")
