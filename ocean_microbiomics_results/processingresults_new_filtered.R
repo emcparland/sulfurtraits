@@ -5,11 +5,11 @@ library("ggplot2")
 library("ggridges")
 library("gridExtra")
 
-results <- read.table("DOSTraits/new_filtered_SA/2024_0531_sulf_out_filt.txt")
+results <- read.table("new_filtered_SA/2024_0531_sulf_out_filt.txt")
 # get the KOs
-sulfateKOs <- read.csv("DOSTraits/Sulfate.csv")
+sulfateKOs <- read.csv("Sulfate_20251110.csv")
 sulfateKOs$StepKOs <- paste0("Step", sulfateKOs$Step, ":", sulfateKOs$KO)
-genomessums <- read.csv("DOSTraits/genome_summary_ELM.csv")
+genomessums <- read.csv("genome_summary_MAD_3.csv.csv")
 genomesscaffolds <- read.table("DOSTraits/genomes-scaffolds-membership.tsv")
 genomesscaffolds$V1 <- paste0(genomesscaffolds$V1, "-")
 logics <- read.csv("DOSTraits/SulfateLogic.csv",header = 1)
@@ -202,9 +202,9 @@ for (p in c(1)){
   ggsave(filename = paste0("DOSTraits/new_filtered_SA/", unique(sulfateKOs$Broad.pathway.description[which(sulfateKOs$Pathway.Number == p)]), "_knownauxotrophs.pdf"), plot = plot, width = 10, height = 10, limitsize = FALSE)
   
   # pull and plot in the form of a bar plot the number of genomes in each group, with the in each bar being the type of genome
-  dfsteps$Lifestyle <- "SemiAuxotroph"
-  dfsteps$Lifestyle[which(dfsteps$MaxCompletion == 0)] <- "Auxotroph"
-  dfsteps$Lifestyle[which(dfsteps$MaxCompletion == 1)] <- "Assimilator"
+  dfsteps$Lifestyle <- "incomplete"
+  dfsteps$Lifestyle[which(dfsteps$MaxCompletion == 0)] <- "auxotroph"
+  dfsteps$Lifestyle[which(dfsteps$MaxCompletion == 1)] <- "assimilator"
   refgenomes <- dfsteps %>%
     filter(Type == "RefGenome")
   notrefgenomes <- dfsteps %>%
